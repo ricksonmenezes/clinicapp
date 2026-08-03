@@ -1,0 +1,15 @@
+[Unit]
+Description=clinicapp backend server
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=clinicapp
+WorkingDirectory=/opt/clinicapp/backend
+EnvironmentFile=/opt/clinicapp/.env
+ExecStart=/opt/clinicapp/backend/bin/clinicapp-server
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
