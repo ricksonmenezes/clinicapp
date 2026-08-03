@@ -28,7 +28,7 @@ instructions.
       attendants), commission resolution logic (session override → service override → consultant
       default), commission snapshot storage, session history per patient and per consultant.
       Tests green.
-- [ ] **M5** — Invoicing & PDF: invoice generation per session and per package, server-side PDF
+- [x] **M5** — Invoicing & PDF: invoice generation per session and per package, server-side PDF
       output, admin placeholder editor (clinic name, address, footer etc.), commission history
       view per consultant showing rate + resolution source per session. Tests green.
 - [ ] **M6** — Prescriptions (Rx): Rx authoring UI for consultants, printable PDF output.
@@ -62,6 +62,33 @@ instructions.
 
 ## Decision log
 
+- **2026-08-03** (M5): Invoicing & PDF complete. New `internal/invoice` package
+  (`Invoice`/`TemplatePlaceholder` models, `Repository` + `PlaceholderRepository`, `Service`,
+  `Handler`). Migrations `017`–`018` add `invoices` (with a DB `CHECK` enforcing exactly one of
+  `session_id`/`package_id` — a real financial-record invariant, not just an API nicety) and
+  `invoice_template_placeholders`. **PDF library decision (deferred from M3/PLAN.md to "when M5
+  starts")**: chose `github.com/go-pdf/fpdf` — pure Go, no cgo, no external binary (rules out
+  `wkhtmltopdf` via exec) and no headless-Chrome dependency (rules out `chromedp`), which matters
+  because this machine and the netcup deploy target have no Docker and the project already avoids
+  adding install-time system dependencies. `POST /invoices` takes only a `session_id` or
+  `package_id` (a `patient_package` id) — never a caller-supplied `patient_id` or amount — and
+  derives patient, line-item description, and total from the underlying record, so an invoice
+  can't drift from what it's billing: session invoices total the service's price, package invoices
+  total the package's price. New `INVOICE_STORAGE_DIR` env var (default `data/invoices`, relative
+  to `backend/`) is where generated PDFs land; `pdf_path` is written to the DB in a second `UPDATE`
+  after the DB assigns the invoice's id, since the on-disk filename is `{id}.pdf`. The JSON
+  response never exposes the raw filesystem path — just a `pdf_available` boolean — with the
+  actual bytes served through `GET /invoices/{id}/pdf`, which bypasses the web/mobile
+  `renderer` dispatch entirely (raw `application/pdf`, not HTML/JSON) since a binary download
+  isn't something X-Client-Type applies to. Commission history (CLAUDE.md's "must show
+  `resolution_source` alongside the rate") landed as `GET /consultants/{id}/commission-history`,
+  implemented in `internal/session` (where `CommissionSnapshot` already lives) but registered
+  under the `/consultants/` path, same pattern as `consultant.Handler`'s own
+  `/consultants/{id}/service-commissions`. 6 new integration tests in `invoice_test.go` cover
+  session invoices, package invoices, the session/package exclusivity validation, unknown-FK
+  rejection, placeholder upsert+list round-tripping, and commission history (including a manual
+  PDF-render smoke check, not committed, confirming the output actually renders legibly). `go test
+  ./...` green.
 - **2026-08-03** (M4): Session management complete. New `internal/session` package
   (`Session`/`CommissionSnapshot` models, `Repository`, `Service`, `Handler` — same layering as
   every prior module). Migrations `014`–`016` add `sessions`, `session_attendants`,
