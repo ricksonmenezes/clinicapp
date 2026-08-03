@@ -147,6 +147,11 @@ Auth tokens:
 
 ## 7. Deployment
 
+**Domain**: `clinic.ricksonmenezes.com` is already pointed at the netcup server's address (DNS
+done). What's still pending is the netcup-side Caddy config to route requests for this subdomain
+to the local backend (`reverse_proxy localhost:8080`) — see the Caddyfile snippet below; land it
+in `deploy/Caddyfile` and apply it on the server when M9 (production deploy) starts.
+
 **SSH**: `ssh <your-server>` (configure in `~/.ssh/config`).
 
 **Deploy one-liner** (after pushing to GitHub):
@@ -156,14 +161,14 @@ ssh <server> 'cd /opt/clinicapp && git pull && cd backend && go build -o bin/cli
 
 Then verify:
 ```bash
-curl https://<domain>/healthz
+curl https://clinic.ricksonmenezes.com/healthz
 ```
 
 `scripts/deploy.sh` wraps this one-liner.
 
 **Caddy** (reverse proxy):
 ```
-<domain> {
+clinic.ricksonmenezes.com {
     reverse_proxy localhost:8080
 }
 ```

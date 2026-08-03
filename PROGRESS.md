@@ -46,6 +46,12 @@ instructions.
 
 ## Pending / deferred items
 
+- **Production domain already provisioned**: `clinic.ricksonmenezes.com` DNS already points at the
+  netcup server. Still pending: adding the `reverse_proxy localhost:8080` block for this subdomain
+  to Caddy on the netcup server itself (see `CLAUDE.md` §7). Deferred to M9 (production deploy);
+  no code-side work needed until then.
+
+
 - Per-service commission override (`consultant_service_commission` table): needs `services`
   (M3) for its `service_id` FK. Land it alongside M3's service CRUD migrations.
 - SMS provider: user to confirm which provider (Twilio, Vonage, local Philippine SMS gateway, etc.)
