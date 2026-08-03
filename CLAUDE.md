@@ -83,6 +83,7 @@ clinicapp/
 │       ├── session/
 │       ├── invoice/
 │       ├── prescription/
+│       ├── booking/       ← customer-portal calendar availability + self-booking
 │       ├── mailer/        ← Resend interface + implementation (api.resend.com/emails)
 │       ├── sms/           ← SMS interface (provider plugged in when confirmed)
 │       └── store/         ← DB pool, migration runner

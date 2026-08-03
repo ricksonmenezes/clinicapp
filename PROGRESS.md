@@ -33,7 +33,7 @@ instructions.
       view per consultant showing rate + resolution source per session. Tests green.
 - [x] **M6** — Prescriptions (Rx): Rx authoring UI for consultants, printable PDF output.
       Tests green.
-- [ ] **M7** — Customer-facing portal: patient self-register/login (same auth backend), service
+- [x] **M7** — Customer-facing portal: patient self-register/login (same auth backend), service
       browse, calendar slot availability view, booking flow, email confirmation on booking.
       Tests green.
 - [ ] **M8** — SMS notifications: integrate SMS provider (TBD — awaiting user confirmation of
@@ -62,6 +62,47 @@ instructions.
 
 ## Decision log
 
+- **2026-08-03** (M7): Customer-facing portal complete. Patient self-registration/login reuses
+  `POST /auth/register` + `/auth/login` as-is (both were already patient-role/client-agnostic).
+  **Self-service profile (not specified in PLAN.md)**: registering only creates the `users` row —
+  someone still has to create the `patients` profile row. Rather than auto-creating it inside
+  `auth.Service.Register` (would invert package layering — `auth` would have to depend on
+  `patient`), added `POST/GET /patients/me`, patient-role-only, resolving `user_id` from the JWT
+  claims via a new `patient.Repository.GetByUserID` — same self-authorship pattern as M6's Rx
+  consultant resolution. New `internal/booking` package implements availability + booking as a
+  thin layer over `session.Service`, so a patient-initiated booking gets the exact same
+  patient/service/consultant validation and commission-snapshot pipeline as a backoffice-created
+  session — no parallel booking-specific business logic. **Clinic calendar (not specified in
+  PLAN.md)**: fixed package constants, not DB/admin-configurable — Mon–Sat 09:00–17:00 UTC,
+  30-minute slots, closed Sunday. Nothing in PLAN.md scopes admin-editable hours, so this avoids
+  a second admin settings surface alongside the invoice placeholder table; revisit if a real
+  schedule is ever needed. **Slot capacity (not specified in PLAN.md)**: the schema has no
+  consultant-service capability mapping (which consultants can perform which service), so rather
+  than invent one, clinic capacity per (service, slot) is 1 — at most one booking of a given
+  service per slot, city-wide. For services with `requires_consultant`, `Book` additionally
+  auto-assigns the first consultant with no session (of any service) at that exact time — the
+  patient never picks a consultant, matching PLAN.md's booking flow verbatim ("choose service ->
+  choose date/time -> confirm"). Availability is recomputed inside `Book` itself, not trusted
+  from a prior `GET /availability` call, to catch staleness between viewing the calendar and
+  confirming — this is a best-effort check-then-insert, not a DB constraint (a `UNIQUE(service_id,
+  scheduled_at)` constraint was considered and rejected: it would also constrain admin-created
+  backoffice sessions, breaking the existing, legitimate case of two different consultants seeing
+  two different patients for the same service at the same time). New
+  `session.Repository.ListOccupancyInRange` returns a lightweight service/consultant/time
+  projection for these checks without paying `List`/`GetByID`'s attendant/commission-snapshot
+  hydrate cost. Booking confirmation email is sent through the existing `mailer.Mailer`; per
+  CLAUDE.md's "Email sending guardrails" (scoped to "every endpoint that sends an email"),
+  `POST /bookings` is wrapped in the same account-wide `emailGuardrail` middleware as
+  register/forgot-password/reset-password. **Patient-facing responses never expose
+  `CommissionSnapshot`** (consultant/clinic revenue split) — `booking.Handler` has its own
+  `bookingJSON`, deliberately narrower than `session.Handler`'s admin/clinician-facing
+  `sessionJSON`. 9 new integration tests in `booking_test.go` cover: self-service profile
+  create/get/duplicate-conflict/role-rejection, full booking flow with consultant
+  auto-assignment (availability before/after, confirmation email, commission data absent from the
+  response), same-slot conflict from a second patient (409), ownership isolation on
+  `GET /bookings/{id}` and `GET /bookings`, attendant-only services needing no consultant, missing
+  patient profile (400), non-patient caller (403), off-grid and past-time slots (400), and Sunday
+  returning zero slots rather than an error. `go test ./...` green.
 - **2026-08-03** (M6): Prescriptions (Rx) complete. New `internal/prescription` package
   (`Prescription` model, `Repository`, `Service`, `Handler`, `pdf.go`) — same layering as
   `internal/invoice`. Migration `019` adds `prescriptions` (`session_id` nullable FK, `consultant_id`
