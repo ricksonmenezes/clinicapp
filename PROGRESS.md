@@ -8,7 +8,7 @@ instructions.
 
 ## Milestone checklist
 
-- [ ] **M0** — Repo skeleton: directory structure, `PLAN.md`, `CLAUDE.md`, `PROGRESS.md`,
+- [x] **M0** — Repo skeleton: directory structure, `PLAN.md`, `CLAUDE.md`, `PROGRESS.md`,
       `.gitignore`, `.env.example`, `go.mod`. GitHub repo created and pushed.
 - [ ] **M1** — Auth module: DB migrations (users + token tables + user_providers stub), all
       auth endpoints (register, verify-email, resend-verification, login, refresh, logout,
@@ -55,6 +55,11 @@ instructions.
 
 ## Decision log
 
+- **2026-08-03** (M0): Repo skeleton built — full directory structure per `PLAN.md`, `go.mod`
+  (module `clinicapp/backend`, Go 1.21), minimal `cmd/server/main.go` with `GET /healthz`,
+  `.gitignore`, `.env.example`. `internal/*` packages scaffolded with package-only `doc.go` files
+  (no logic yet — that lands per-module starting M1). Pushed to
+  `https://github.com/ricksonmenezes/clinicapp` (public).
 - **2026-08-03** (planning): Tech stack confirmed as Go backend + HTMX frontend. One backend
   serves web and mobile via `X-Client-Type` header — same endpoints, different response renderer.
   No separate mobile API surface.
