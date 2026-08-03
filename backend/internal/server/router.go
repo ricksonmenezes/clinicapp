@@ -49,10 +49,12 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer) http.Han
 		RefreshTokenExpiry: time.Duration(cfg.RefreshTokenExpiryDays) * 24 * time.Hour,
 	})
 
+	serviceRepo := service.NewRepository(pool)
+
 	patientHandler := patient.NewHandler(patient.NewService(patient.NewRepository(pool), authRepo))
-	consultantHandler := consultant.NewHandler(consultant.NewService(consultant.NewRepository(pool), authRepo))
+	consultantHandler := consultant.NewHandler(consultant.NewService(consultant.NewRepository(pool), authRepo, serviceRepo))
 	attendantHandler := attendant.NewHandler(attendant.NewService(attendant.NewRepository(pool), authRepo))
-	serviceHandler := service.NewHandler(service.NewManager(service.NewRepository(pool)))
+	serviceHandler := service.NewHandler(service.NewManager(serviceRepo))
 
 	registerLimiter := middleware.NewRateLimiter(3, time.Minute)
 	loginLimiter := middleware.NewRateLimiter(5, time.Minute)
@@ -85,6 +87,8 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer) http.Han
 	mux.Handle("GET /consultants", authRequired(adminOnly(http.HandlerFunc(consultantHandler.List))))
 	mux.Handle("GET /consultants/{id}", authRequired(adminOnly(http.HandlerFunc(consultantHandler.Get))))
 	mux.Handle("PATCH /consultants/{id}", authRequired(adminOnly(http.HandlerFunc(consultantHandler.Update))))
+	mux.Handle("POST /consultants/{id}/service-commissions", authRequired(adminOnly(http.HandlerFunc(consultantHandler.SetServiceCommission))))
+	mux.Handle("GET /consultants/{id}/service-commissions", authRequired(adminOnly(http.HandlerFunc(consultantHandler.ListServiceCommissions))))
 
 	mux.Handle("POST /attendants", authRequired(adminOnly(http.HandlerFunc(attendantHandler.Create))))
 	mux.Handle("GET /attendants", authRequired(adminOnly(http.HandlerFunc(attendantHandler.List))))

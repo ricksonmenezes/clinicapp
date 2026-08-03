@@ -94,3 +94,47 @@ func (r *Repository) Update(ctx context.Context, id, fullName string, defaultCom
 	}
 	return c, nil
 }
+
+// UpsertServiceCommission sets (creating or replacing) the override rate for
+// a consultant/service pair. It's an upsert rather than separate create/update
+// endpoints because the override is conceptually a single value the admin is
+// setting, not a record with its own lifecycle.
+func (r *Repository) UpsertServiceCommission(ctx context.Context, consultantID, serviceID string, commission float64) (*ServiceCommission, error) {
+	sc := &ServiceCommission{}
+	err := r.pool.QueryRow(ctx, `
+		INSERT INTO consultant_service_commission (consultant_id, service_id, commission)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (consultant_id, service_id) DO UPDATE SET commission = $3, updated_at = now()
+		RETURNING id, consultant_id, service_id, commission, created_at, updated_at
+	`, consultantID, serviceID, commission).Scan(
+		&sc.ID, &sc.ConsultantID, &sc.ServiceID, &sc.Commission, &sc.CreatedAt, &sc.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return sc, nil
+}
+
+func (r *Repository) ListServiceCommissions(ctx context.Context, consultantID string) ([]*ServiceCommission, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, consultant_id, service_id, commission, created_at, updated_at
+		FROM consultant_service_commission WHERE consultant_id = $1 ORDER BY created_at DESC
+	`, consultantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var overrides []*ServiceCommission
+	for rows.Next() {
+		sc := &ServiceCommission{}
+		if err := rows.Scan(&sc.ID, &sc.ConsultantID, &sc.ServiceID, &sc.Commission, &sc.CreatedAt, &sc.UpdatedAt); err != nil {
+			return nil, err
+		}
+		overrides = append(overrides, sc)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return overrides, nil
+}

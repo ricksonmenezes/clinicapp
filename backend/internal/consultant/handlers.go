@@ -102,6 +102,69 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+type serviceCommissionRequest struct {
+	ServiceID  string  `json:"service_id"`
+	Commission float64 `json:"commission"`
+}
+
+func (h *Handler) SetServiceCommission(w http.ResponseWriter, r *http.Request) {
+	var req serviceCommissionRequest
+	if err := decodeJSON(r, &req); err != nil {
+		renderError(w, r, http.StatusBadRequest, err)
+		return
+	}
+
+	sc, err := h.svc.SetServiceCommission(r.Context(), r.PathValue("id"), req.ServiceID, req.Commission)
+	if err != nil {
+		renderError(w, r, statusForError(err), err)
+		return
+	}
+
+	renderer.Render(w, r, renderer.Response{
+		Status: http.StatusOK,
+		JSON:   serviceCommissionJSON(sc),
+		HTML:   serviceCommissionHTML(sc),
+	})
+}
+
+func (h *Handler) ListServiceCommissions(w http.ResponseWriter, r *http.Request) {
+	overrides, err := h.svc.ListServiceCommissions(r.Context(), r.PathValue("id"))
+	if err != nil {
+		renderError(w, r, statusForError(err), err)
+		return
+	}
+
+	items := make([]any, 0, len(overrides))
+	var htmlBuf strings.Builder
+	htmlBuf.WriteString("<ul>")
+	for _, sc := range overrides {
+		items = append(items, serviceCommissionJSON(sc))
+		htmlBuf.WriteString(serviceCommissionHTML(sc))
+	}
+	htmlBuf.WriteString("</ul>")
+
+	renderer.Render(w, r, renderer.Response{
+		Status: http.StatusOK,
+		JSON:   map[string]any{"service_commissions": items},
+		HTML:   htmlBuf.String(),
+	})
+}
+
+func serviceCommissionJSON(sc *ServiceCommission) map[string]any {
+	return map[string]any{
+		"id":            sc.ID,
+		"consultant_id": sc.ConsultantID,
+		"service_id":    sc.ServiceID,
+		"commission":    sc.Commission,
+		"created_at":    sc.CreatedAt,
+		"updated_at":    sc.UpdatedAt,
+	}
+}
+
+func serviceCommissionHTML(sc *ServiceCommission) string {
+	return fmt.Sprintf(`<li data-id="%s" data-service-id="%s">%.2f%%</li>`, html.EscapeString(sc.ID), html.EscapeString(sc.ServiceID), sc.Commission)
+}
+
 func consultantJSON(c *Consultant) map[string]any {
 	return map[string]any{
 		"id":                 c.ID,
@@ -141,7 +204,7 @@ func statusForError(err error) int {
 	switch {
 	case errors.Is(err, ErrValidation), errors.Is(err, ErrInvalidCommission), errors.Is(err, ErrInvalidRole):
 		return http.StatusBadRequest
-	case errors.Is(err, ErrUserNotFound):
+	case errors.Is(err, ErrUserNotFound), errors.Is(err, ErrServiceNotFound):
 		return http.StatusBadRequest
 	case errors.Is(err, ErrAlreadyExists):
 		return http.StatusConflict
