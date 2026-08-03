@@ -19,6 +19,7 @@ import (
 	"clinicapp/backend/internal/mailer"
 	"clinicapp/backend/internal/middleware"
 	"clinicapp/backend/internal/patient"
+	"clinicapp/backend/internal/promo"
 	"clinicapp/backend/internal/service"
 )
 
@@ -50,11 +51,19 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer) http.Han
 	})
 
 	serviceRepo := service.NewRepository(pool)
+	patientRepo := patient.NewRepository(pool)
+	consultantRepo := consultant.NewRepository(pool)
 
-	patientHandler := patient.NewHandler(patient.NewService(patient.NewRepository(pool), authRepo))
-	consultantHandler := consultant.NewHandler(consultant.NewService(consultant.NewRepository(pool), authRepo, serviceRepo))
+	patientHandler := patient.NewHandler(patient.NewService(patientRepo, authRepo))
+	consultantHandler := consultant.NewHandler(consultant.NewService(consultantRepo, authRepo, serviceRepo))
 	attendantHandler := attendant.NewHandler(attendant.NewService(attendant.NewRepository(pool), authRepo))
 	serviceHandler := service.NewHandler(service.NewManager(serviceRepo))
+
+	packageRepo := promo.NewPackageRepository(pool)
+	promoHandler := promo.NewHandler(
+		promo.NewPackageManager(packageRepo, serviceRepo),
+		promo.NewPatientPackageManager(promo.NewPatientPackageRepository(pool), packageRepo, patientRepo, consultantRepo),
+	)
 
 	registerLimiter := middleware.NewRateLimiter(3, time.Minute)
 	loginLimiter := middleware.NewRateLimiter(5, time.Minute)
@@ -101,6 +110,15 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer) http.Han
 	mux.Handle("GET /services", authRequired(http.HandlerFunc(serviceHandler.List)))
 	mux.Handle("GET /services/{id}", authRequired(http.HandlerFunc(serviceHandler.Get)))
 	mux.Handle("PATCH /services/{id}", authRequired(adminOnly(http.HandlerFunc(serviceHandler.Update))))
+
+	mux.Handle("POST /packages", authRequired(adminOnly(http.HandlerFunc(promoHandler.CreatePackage))))
+	mux.Handle("GET /packages", authRequired(adminOnly(http.HandlerFunc(promoHandler.ListPackages))))
+	mux.Handle("GET /packages/{id}", authRequired(adminOnly(http.HandlerFunc(promoHandler.GetPackage))))
+	mux.Handle("PATCH /packages/{id}", authRequired(adminOnly(http.HandlerFunc(promoHandler.UpdatePackage))))
+
+	mux.Handle("POST /patient-packages", authRequired(adminOnly(http.HandlerFunc(promoHandler.CreatePatientPackage))))
+	mux.Handle("GET /patient-packages", authRequired(adminOrClinician(http.HandlerFunc(promoHandler.ListPatientPackages))))
+	mux.Handle("GET /patient-packages/{id}", authRequired(adminOrClinician(http.HandlerFunc(promoHandler.GetPatientPackage))))
 
 	return middleware.ClientType(mux)
 }
