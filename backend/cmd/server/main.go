@@ -1,28 +1,44 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"log"
 	"net/http"
-	"os"
+
+	"clinicapp/backend/internal/config"
+	"clinicapp/backend/internal/mailer"
+	"clinicapp/backend/internal/server"
+	"clinicapp/backend/internal/store"
 )
 
+// migrationsDir is relative to the process working directory, which is
+// always backend/ per CLAUDE.md's documented run commands (local `cd backend
+// && go run ./cmd/server`, and deploy/clinicapp.service's WorkingDirectory).
+const migrationsDir = "../migrations"
+
 func main() {
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("load config: %v", err)
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", healthzHandler)
+	ctx := context.Background()
 
-	log.Printf("clinicapp server listening on :%s", port)
-	if err := http.ListenAndServe(":"+port, mux); err != nil {
+	pool, err := store.NewPool(ctx, cfg.DBDSN)
+	if err != nil {
+		log.Fatalf("connect db: %v", err)
+	}
+	defer pool.Close()
+
+	if err := store.RunMigrations(ctx, pool, migrationsDir); err != nil {
+		log.Fatalf("run migrations: %v", err)
+	}
+
+	m := mailer.NewSMTPMailer(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUser, cfg.SMTPPass, cfg.SMTPFrom)
+	router := server.NewRouter(pool, cfg, m)
+
+	log.Printf("clinicapp server listening on :%s", cfg.Port)
+	if err := http.ListenAndServe(":"+cfg.Port, router); err != nil {
 		log.Fatal(err)
 	}
-}
-
-func healthzHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
