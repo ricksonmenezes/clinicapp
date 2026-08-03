@@ -20,6 +20,7 @@ import (
 	"clinicapp/backend/internal/mailer"
 	"clinicapp/backend/internal/middleware"
 	"clinicapp/backend/internal/patient"
+	"clinicapp/backend/internal/prescription"
 	"clinicapp/backend/internal/promo"
 	"clinicapp/backend/internal/service"
 	"clinicapp/backend/internal/session"
@@ -75,10 +76,16 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer) http.Han
 		sessionRepo, patientRepo, serviceRepo, consultantRepo, attendantRepo, patientPackageRepo,
 	))
 
+	placeholderRepo := invoice.NewPlaceholderRepository(pool)
 	invoiceHandler := invoice.NewHandler(invoice.NewService(
-		invoice.NewRepository(pool), invoice.NewPlaceholderRepository(pool),
+		invoice.NewRepository(pool), placeholderRepo,
 		sessionRepo, serviceRepo, packageRepo, patientPackageRepo, patientRepo,
 		cfg.InvoiceStorageDir,
+	))
+
+	prescriptionHandler := prescription.NewHandler(prescription.NewService(
+		prescription.NewRepository(pool), consultantRepo, patientRepo, sessionRepo, placeholderRepo,
+		cfg.PrescriptionStorageDir,
 	))
 
 	registerLimiter := middleware.NewRateLimiter(3, time.Minute)
@@ -106,6 +113,7 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer) http.Han
 	authRequired := middleware.Auth(cfg.JWTSecret)
 	adminOnly := middleware.RequireRole(auth.RoleAdmin)
 	adminOrClinician := middleware.RequireRole(auth.RoleAdmin, auth.RoleClinician)
+	clinicianOnly := middleware.RequireRole(auth.RoleClinician)
 
 	mux.Handle("POST /auth/register-staff", authRequired(adminOnly(http.HandlerFunc(authHandler.RegisterStaff))))
 
@@ -155,6 +163,15 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer) http.Han
 
 	mux.Handle("GET /invoice-template-placeholders", authRequired(adminOnly(http.HandlerFunc(invoiceHandler.ListPlaceholders))))
 	mux.Handle("PUT /invoice-template-placeholders/{key}", authRequired(adminOnly(http.HandlerFunc(invoiceHandler.SetPlaceholder))))
+
+	// Prescriptions are clinician-only end to end (not admin/clinician like
+	// invoices) — per PLAN.md's API table, Rx authorship and content are a
+	// clinician's professional responsibility, not a front-office/billing
+	// concern.
+	mux.Handle("POST /prescriptions", authRequired(clinicianOnly(http.HandlerFunc(prescriptionHandler.Create))))
+	mux.Handle("GET /prescriptions", authRequired(clinicianOnly(http.HandlerFunc(prescriptionHandler.List))))
+	mux.Handle("GET /prescriptions/{id}", authRequired(clinicianOnly(http.HandlerFunc(prescriptionHandler.Get))))
+	mux.Handle("GET /prescriptions/{id}/pdf", authRequired(clinicianOnly(http.HandlerFunc(prescriptionHandler.DownloadPDF))))
 
 	return middleware.ClientType(mux)
 }

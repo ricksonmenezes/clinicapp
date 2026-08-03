@@ -53,6 +53,25 @@ func (r *Repository) GetByID(ctx context.Context, id string) (*Consultant, error
 	return c, nil
 }
 
+// GetByUserID looks up a consultant profile by the underlying auth user id —
+// used to resolve "the consultant profile of whoever is calling this
+// endpoint" (e.g. Rx authorship) rather than trusting a caller-supplied
+// consultant_id.
+func (r *Repository) GetByUserID(ctx context.Context, userID string) (*Consultant, error) {
+	c := &Consultant{}
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, user_id, full_name, default_commission, created_at, updated_at
+		FROM consultants WHERE user_id = $1
+	`, userID).Scan(&c.ID, &c.UserID, &c.FullName, &c.DefaultCommission, &c.CreatedAt, &c.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return c, nil
+}
+
 func (r *Repository) List(ctx context.Context) ([]*Consultant, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, user_id, full_name, default_commission, created_at, updated_at
