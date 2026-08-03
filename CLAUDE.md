@@ -299,3 +299,13 @@ This is additive to, not a replacement for, the per-email-address resend-verific
 ## 10. Current phase
 
 See `PROGRESS.md` for the live milestone checklist and pending items.
+
+---
+
+## 11. Resuming work ("proceed", "continue", etc.)
+
+If asked to "proceed" or "continue" with no other context (including right after `/clear` or a
+fresh session start), never ask what to proceed with — always check `PROGRESS.md` first for the
+current milestone and pending items, then `PLAN.md` if `PROGRESS.md` is ambiguous, and start on
+the next actionable item. Only ask a question if both files leave genuine ambiguity (e.g., two
+equally-valid next milestones).
