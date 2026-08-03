@@ -14,7 +14,9 @@ instructions.
       auth endpoints (register, verify-email, resend-verification, login, refresh, logout,
       forgot-password, reset-password), mailer abstraction (SMTP), middleware (auth JWT,
       client-type, rate limit), renderer (web HTML fragment vs mobile JSON).
-      `go test ./...` green.
+      Integration test harness scaffolded (testserver, testdb, FakeMailer, helpers).
+      Full register → verify-email → login → protected-endpoint e2e test passing.
+      `go test ./...` green with zero manual steps.
 - [ ] **M2** — Patient & consultant management: patient profile CRUD, consultant profile CRUD,
       global commission config, per-service commission override, attendant profiles.
       Backoffice HTMX pages for each. Tests green.
@@ -55,6 +57,12 @@ instructions.
 
 ## Decision log
 
+- **2026-08-03** (M1 planning): Testing strategy decided. All milestone verification automated
+  via `go test ./...` — no manual curl steps. Integration test harness lives in
+  `backend/tests/integration/`. FakeMailer (in-process) used for email flow tests; Mailpit
+  (Docker) used for local dev SMTP inspection. Each milestone adds its own integration test
+  file before being marked complete. Canonical flow: register → FakeMailer captures email →
+  extract token → verify → login → hit protected endpoint → assert 200.
 - **2026-08-03** (M0): Repo skeleton built — full directory structure per `PLAN.md`, `go.mod`
   (module `clinicapp/backend`, Go 1.21), minimal `cmd/server/main.go` with `GET /healthz`,
   `.gitignore`, `.env.example`. `internal/*` packages scaffolded with package-only `doc.go` files

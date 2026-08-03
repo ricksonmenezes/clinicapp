@@ -409,10 +409,66 @@ RateLimitMiddleware    → per-IP limits: login 5/min, register 3/min, resend-ve
 
 ---
 
+## Testing strategy
+
+### Philosophy
+All milestone verification is automated — no manual curl commands required. `go test ./...` is the
+single command that confirms a milestone is done. Every module adds its own integration test file
+before that milestone is marked complete.
+
+### Layers
+
+| Layer | Tool | What it covers |
+|---|---|---|
+| Unit tests | Go `testing` package | Pure logic: commission resolution, token generation, password hashing |
+| Integration tests | Go `net/http/httptest` + test DB | Full request → handler → DB → response chain per endpoint |
+| Email flow | FakeMailer (in-process) | Captures outbound emails in memory; tests extract tokens without real SMTP |
+| Local dev email | Mailpit (Docker, port 1025/8025) | Real SMTP sink for manual inspection during development |
+| CI email | Mailpit service container | Same as local, wired into GitHub Actions |
+
+### Integration test harness (scaffolded in M1, extended each milestone)
+
+Located at `backend/tests/integration/`. Contains:
+- `testserver.go` — spins up the full HTTP server with a real test DB and injected FakeMailer
+- `testdb.go` — connects to `clinicapp_test` Postgres DB, runs migrations fresh per test run
+- `fakemailer.go` — implements the `mailer.Mailer` interface; stores sent emails in memory
+- `helpers.go` — shared assertion helpers, token extractors, request builders
+
+Each module adds `backend/tests/integration/<module>_test.go`.
+
+### Canonical M1 e2e test (the template all future flows follow)
+
+```
+Spin up test server with FakeMailer injected
+POST /auth/register { email, password }
+  → assert 201
+  → assert FakeMailer has 1 email to that address
+Extract verification token from email body (regex on the link)
+GET /auth/verify-email?token=<extracted>
+  → assert 200 / redirect
+  → assert access token issued (cookie for web, JSON for mobile)
+POST /auth/login { email, password }
+  → assert 200
+  → assert tokens in response
+Hit GET /patients (protected) with access token
+  → assert 200 (not 401)
+```
+
+### Mailpit for local dev
+
+Run alongside Postgres:
+```bash
+docker run -d -p 1025:1025 -p 8025:8025 axllent/mailpit
+```
+Set `SMTP_HOST=localhost SMTP_PORT=1025` in `backend/.env`.
+Browse caught emails at `http://localhost:8025`.
+
+---
+
 ## Milestones
 
 - **M0** — Repo skeleton: directory structure, `PLAN.md`, `CLAUDE.md`, `PROGRESS.md`, `.gitignore`, `.env.example`, `go.mod`. GitHub repo created and pushed.
-- **M1** — Auth module: DB migrations (users, tokens tables), register/verify/login/refresh/logout/forgot-password/reset-password endpoints, mailer abstraction (SMTP), middleware (auth, client-type, rate limit), renderer (web HTML vs mobile JSON). `go test ./...` green.
+- **M1** — Auth module: DB migrations (users, tokens tables), register/verify/login/refresh/logout/forgot-password/reset-password endpoints, mailer abstraction (SMTP), middleware (auth, client-type, rate limit), renderer (web HTML vs mobile JSON). Integration test harness scaffolded. `go test ./...` green.
 - **M2** — Patient & consultant management: profile CRUD, commission config (global + per-service override), attendant profiles. Backoffice HTMX pages for each. Tests green.
 - **M3** — Services & packages: service CRUD, package definition, patient package subscription. Backoffice pages. Tests green.
 - **M4** — Session management: session recording, commission resolution (session → service → default), snapshot storage, session history per patient and per consultant. Tests green.
@@ -427,7 +483,7 @@ RateLimitMiddleware    → per-IP limits: login 5/min, register 3/min, resend-ve
 ## Verification per milestone
 
 - **M0**: repo on GitHub, all three doc files present, `go mod tidy` clean.
-- **M1**: `curl POST /auth/register` → verification email sent; `GET /auth/verify-email?token=...` → JWT returned; `POST /auth/login` → tokens issued; `POST /auth/refresh` → new access token; `POST /auth/logout` → refresh token revoked in DB. `go test ./...` green.
+- **M1**: `go test ./...` green with no manual steps. Automated integration test suite covers: POST /auth/register → FakeMailer captures email → token extracted → GET /auth/verify-email → JWT issued → POST /auth/login → tokens returned → protected endpoint returns 200. Real SMTP path verified locally via Mailpit.
 - **M2**: backoffice pages load; patient/consultant CRUD round-trips via HTMX and JSON. Commission override stored and readable. Tests green.
 - **M3**: service CRUD round-trips; package created and assigned to patient. Tests green.
 - **M4**: session recorded with commission snapshot; history queries return correct results for patient and consultant views. Tests green.

@@ -173,6 +173,26 @@ cd backend && go test ./...
 
 All tests must be green before any push to main.
 
+### Guardrails — tests run automatically on every change
+
+**Local (pre-push hook)**
+Install once after cloning:
+```bash
+bash scripts/install-hooks.sh
+```
+This installs a `pre-push` git hook that runs `go test ./...` before every push.
+A failing test aborts the push — nothing broken reaches GitHub.
+
+**CI (GitHub Actions)**
+Every push and pull request triggers `.github/workflows/ci.yml` which:
+- Starts a Postgres service container (`clinicapp_test` DB, migrations applied)
+- Starts a Mailpit service container (SMTP sink for email flow tests)
+- Runs `go test ./...`
+- Fails the build and blocks merging if any test is red
+
+Merges to main are blocked unless CI is green. This is the hard enforcement —
+the pre-push hook is a convenience to catch failures before they hit CI.
+
 ---
 
 ## Hard Constraints
@@ -208,6 +228,13 @@ All tests must be green before any push to main.
 ### PDF / invoices
 - Invoice template placeholders live in the DB — never hardcode clinic name, address, or footer text in templates.
 - Commission history must show the `resolution_source` (session override / service override / consultant default) alongside the rate.
+
+### Testing
+- Never mark a milestone complete unless `go test ./...` is green.
+- Never push to main with a failing CI build.
+- Every milestone must add its integration test file before the milestone is closed —
+  tests are not a follow-up task, they ship with the code.
+- Do not skip the pre-push hook (`--no-verify`) without explicit instruction.
 
 ---
 
