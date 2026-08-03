@@ -1,10 +1,12 @@
 package mailer
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
-	"net"
-	"net/smtp"
+	"io"
+	"net/http"
 )
 
 type Message struct {
@@ -17,33 +19,61 @@ type Mailer interface {
 	Send(ctx context.Context, msg Message) error
 }
 
-type SMTPMailer struct {
-	Host string
-	Port string
-	User string
-	Pass string
-	From string
+const resendAPIURL = "https://api.resend.com/emails"
+
+// ResendMailer sends mail via the Resend HTTP API (api.resend.com/emails) —
+// no SMTP layer, even in local dev. Local dev uses a Resend sandbox key and
+// the sandbox From address (onboarding@resend.dev); prod uses a verified
+// domain address.
+type ResendMailer struct {
+	APIKey string
+	From   string
+	Client *http.Client
 }
 
-func NewSMTPMailer(host, port, user, pass, from string) *SMTPMailer {
-	return &SMTPMailer{Host: host, Port: port, User: user, Pass: pass, From: from}
+func NewResendMailer(apiKey, from string) *ResendMailer {
+	return &ResendMailer{APIKey: apiKey, From: from, Client: http.DefaultClient}
 }
 
-func (m *SMTPMailer) Send(_ context.Context, msg Message) error {
-	addr := net.JoinHostPort(m.Host, m.Port)
+type resendRequest struct {
+	From    string   `json:"from"`
+	To      []string `json:"to"`
+	Subject string   `json:"subject"`
+	Text    string   `json:"text"`
+}
 
-	var auth smtp.Auth
-	if m.User != "" {
-		auth = smtp.PlainAuth("", m.User, m.Pass, m.Host)
+func (m *ResendMailer) Send(ctx context.Context, msg Message) error {
+	body, err := json.Marshal(resendRequest{
+		From:    m.From,
+		To:      []string{msg.To},
+		Subject: msg.Subject,
+		Text:    msg.Body,
+	})
+	if err != nil {
+		return err
 	}
 
-	return smtp.SendMail(addr, auth, m.From, []string{msg.To}, buildMessage(m.From, msg))
-}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, resendAPIURL, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+m.APIKey)
+	req.Header.Set("Content-Type", "application/json")
 
-func buildMessage(from string, msg Message) []byte {
-	header := fmt.Sprintf(
-		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=\"UTF-8\"\r\n\r\n",
-		from, msg.To, msg.Subject,
-	)
-	return []byte(header + msg.Body)
+	client := m.Client
+	if client == nil {
+		client = http.DefaultClient
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("resend: send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("resend: unexpected status %d: %s", resp.StatusCode, respBody)
+	}
+	return nil
 }

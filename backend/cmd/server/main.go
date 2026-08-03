@@ -38,7 +38,7 @@ func main() {
 		log.Fatalf("bootstrap admin: %v", err)
 	}
 
-	m := mailer.NewSMTPMailer(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUser, cfg.SMTPPass, cfg.SMTPFrom)
+	m := mailer.NewResendMailer(cfg.ResendAPIKey, cfg.MailFrom)
 	router := server.NewRouter(pool, cfg, m)
 
 	log.Printf("clinicapp server listening on :%s", cfg.Port)

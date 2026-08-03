@@ -34,7 +34,7 @@ func NewTestServer(t *testing.T) (*httptest.Server, *FakeMailer) {
 		JWTExpiryMinutes:       15,
 		RefreshTokenExpiryDays: 30,
 		BaseURL:                "http://localhost:8080",
-		SMTPFrom:               "noreply@clinic.local",
+		MailFrom:               "onboarding@resend.dev",
 		AdminBootstrapEmail:    TestAdminEmail,
 		AdminBootstrapPassword: TestAdminPassword,
 	}

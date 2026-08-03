@@ -8,7 +8,7 @@ import (
 )
 
 // FakeMailer implements mailer.Mailer in-process, capturing every send so
-// tests can extract tokens from email bodies without a real SMTP hop.
+// tests can extract tokens from email bodies without a real Resend API call.
 type FakeMailer struct {
 	mu   sync.Mutex
 	Sent []mailer.Message

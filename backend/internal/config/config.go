@@ -18,11 +18,8 @@ type Config struct {
 	JWTExpiryMinutes       int
 	RefreshTokenExpiryDays int
 
-	SMTPHost string
-	SMTPPort string
-	SMTPUser string
-	SMTPPass string
-	SMTPFrom string
+	ResendAPIKey string
+	MailFrom     string
 
 	SMSProvider string
 	SMSAPIKey   string
@@ -39,18 +36,15 @@ func Load() (*Config, error) {
 	loadDotEnv(".env")
 
 	cfg := &Config{
-		AppEnv:      getEnv("APP_ENV", "local"),
-		Port:        getEnv("PORT", "8080"),
-		DBDSN:       os.Getenv("DB_DSN"),
-		JWTSecret:   os.Getenv("JWT_SECRET"),
-		SMTPHost:    os.Getenv("SMTP_HOST"),
-		SMTPPort:    getEnv("SMTP_PORT", "587"),
-		SMTPUser:    os.Getenv("SMTP_USER"),
-		SMTPPass:    os.Getenv("SMTP_PASS"),
-		SMTPFrom:    getEnv("SMTP_FROM", "noreply@clinic.local"),
-		SMSProvider: os.Getenv("SMS_PROVIDER"),
-		SMSAPIKey:   os.Getenv("SMS_API_KEY"),
-		BaseURL:     getEnv("BASE_URL", "http://localhost:8080"),
+		AppEnv:       getEnv("APP_ENV", "local"),
+		Port:         getEnv("PORT", "8080"),
+		DBDSN:        os.Getenv("DB_DSN"),
+		JWTSecret:    os.Getenv("JWT_SECRET"),
+		ResendAPIKey: os.Getenv("RESEND_API_KEY"),
+		MailFrom:     getEnv("MAIL_FROM", "onboarding@resend.dev"),
+		SMSProvider:  os.Getenv("SMS_PROVIDER"),
+		SMSAPIKey:    os.Getenv("SMS_API_KEY"),
+		BaseURL:      getEnv("BASE_URL", "http://localhost:8080"),
 
 		AdminBootstrapEmail:    os.Getenv("ADMIN_BOOTSTRAP_EMAIL"),
 		AdminBootstrapPassword: os.Getenv("ADMIN_BOOTSTRAP_PASSWORD"),
