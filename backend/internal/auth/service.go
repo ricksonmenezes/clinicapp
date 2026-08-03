@@ -43,13 +43,47 @@ type TokenPair struct {
 	ExpiresIn    int // access token TTL, seconds
 }
 
-func (s *Service) Register(ctx context.Context, email, password, role string) (*User, error) {
+// Register is the public self-service signup path — it always creates a
+// patient account. Elevated roles can only be created via RegisterStaff by
+// an already-authenticated admin, so a request body can never self-assign
+// admin/clinician/attendant.
+func (s *Service) Register(ctx context.Context, email, password string) (*User, error) {
 	email = normalizeEmail(email)
 	if err := validatePassword(password); err != nil {
 		return nil, err
 	}
-	if role == "" {
-		role = RolePatient
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
+	if err != nil {
+		return nil, err
+	}
+
+	user, err := s.repo.CreateUser(ctx, email, string(hash), RolePatient)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.sendVerificationEmail(ctx, user); err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
+// RegisterStaff creates a clinician/attendant/admin account. Callers must
+// enforce (via middleware) that only an authenticated admin can reach this —
+// the service layer only enforces that the role itself is a valid staff
+// role. The account is activated immediately since an admin is vouching for
+// it; no email verification round-trip.
+func (s *Service) RegisterStaff(ctx context.Context, email, password, role string) (*User, error) {
+	email = normalizeEmail(email)
+	if err := validatePassword(password); err != nil {
+		return nil, err
+	}
+	switch role {
+	case RoleClinician, RoleAttendant, RoleAdmin:
+	default:
+		return nil, ErrInvalidRole
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
@@ -62,11 +96,41 @@ func (s *Service) Register(ctx context.Context, email, password, role string) (*
 		return nil, err
 	}
 
-	if err := s.sendVerificationEmail(ctx, user); err != nil {
+	if err := s.repo.ActivateUser(ctx, user.ID); err != nil {
 		return nil, err
 	}
+	user.Status = StatusActive
 
 	return user, nil
+}
+
+// EnsureBootstrapAdmin creates the given admin account if no user with that
+// email exists yet, and is a no-op otherwise — safe to call on every server
+// startup. It exists solely to break the chicken-and-egg problem of
+// RegisterStaff requiring an already-authenticated admin.
+func (s *Service) EnsureBootstrapAdmin(ctx context.Context, email, password string) error {
+	email = normalizeEmail(email)
+	if _, err := s.repo.GetUserByEmail(ctx, email); err == nil {
+		return nil
+	} else if !errors.Is(err, ErrUserNotFound) {
+		return err
+	}
+
+	if err := validatePassword(password); err != nil {
+		return err
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
+	if err != nil {
+		return err
+	}
+
+	user, err := s.repo.CreateUser(ctx, email, string(hash), RoleAdmin)
+	if err != nil {
+		return err
+	}
+
+	return s.repo.ActivateUser(ctx, user.ID)
 }
 
 func (s *Service) sendVerificationEmail(ctx context.Context, user *User) error {

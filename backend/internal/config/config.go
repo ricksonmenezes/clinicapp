@@ -28,6 +28,9 @@ type Config struct {
 	SMSAPIKey   string
 
 	BaseURL string
+
+	AdminBootstrapEmail    string
+	AdminBootstrapPassword string
 }
 
 // Load reads backend/.env (if present, without overriding already-set env vars)
@@ -48,6 +51,9 @@ func Load() (*Config, error) {
 		SMSProvider: os.Getenv("SMS_PROVIDER"),
 		SMSAPIKey:   os.Getenv("SMS_API_KEY"),
 		BaseURL:     getEnv("BASE_URL", "http://localhost:8080"),
+
+		AdminBootstrapEmail:    os.Getenv("ADMIN_BOOTSTRAP_EMAIL"),
+		AdminBootstrapPassword: os.Getenv("ADMIN_BOOTSTRAP_PASSWORD"),
 	}
 
 	jwtExpiry, err := strconv.Atoi(getEnv("JWT_EXPIRY_MINUTES", "15"))

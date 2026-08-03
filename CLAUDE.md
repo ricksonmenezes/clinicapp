@@ -50,6 +50,8 @@ The server starts on `localhost:8080` by default (`PORT` env overrides).
 | `SMS_PROVIDER` | SMS provider name (TBD) | — | TBD |
 | `SMS_API_KEY` | SMS provider API key | — | managed secret |
 | `BASE_URL` | Public base URL (used in email links) | `http://localhost:8080` | `https://<domain>` |
+| `ADMIN_BOOTSTRAP_EMAIL` | Email for the auto-created first admin account (idempotent, runs on every boot) | optional, local testing only | set once, then unset |
+| `ADMIN_BOOTSTRAP_PASSWORD` | Password for the bootstrap admin account | optional, local testing only | set once, then unset |
 
 Never commit `backend/.env` to git.
 
@@ -267,6 +269,11 @@ the pre-push hook is a convenience to catch failures before they hit CI.
   Set this as the default in migrations, not in Go code.
 - **Migration order matters**: never edit a migration file after it has been applied to any
   environment. Add a new migration file instead.
+- **Role assignment is not public**: `POST /auth/register` always creates a `patient` account —
+  it ignores/rejects any role in the request body. Elevated accounts (`clinician`, `attendant`,
+  `admin`) can only be created via `POST /auth/register-staff`, which requires an authenticated
+  `admin` bearer token. The very first admin comes from `ADMIN_BOOTSTRAP_EMAIL` /
+  `ADMIN_BOOTSTRAP_PASSWORD` (idempotent — safe to leave set, only creates the account once).
 
 ---
 

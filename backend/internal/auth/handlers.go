@@ -27,9 +27,12 @@ func NewHandler(svc *Service, cfg HandlerConfig) *Handler {
 type registerRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
-	Role     string `json:"role"`
 }
 
+// Register is the public self-service signup path. It always creates a
+// patient account — callers cannot self-assign an elevated role. Staff
+// accounts (clinician/attendant/admin) are created via RegisterStaff by an
+// already-authenticated admin.
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	var req registerRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -37,7 +40,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.svc.Register(r.Context(), req.Email, req.Password, req.Role)
+	user, err := h.svc.Register(r.Context(), req.Email, req.Password)
 	if err != nil {
 		renderError(w, r, statusForError(err), err)
 		return
@@ -51,6 +54,40 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 			"status": user.Status,
 		},
 		RedirectURL: "/check-email",
+	})
+}
+
+type registerStaffRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+	Role     string `json:"role"`
+}
+
+// RegisterStaff creates a clinician/attendant/admin account. Only reachable
+// by an authenticated admin (enforced by router middleware) — the account is
+// active immediately, no email verification round-trip required.
+func (h *Handler) RegisterStaff(w http.ResponseWriter, r *http.Request) {
+	var req registerStaffRequest
+	if err := decodeJSON(r, &req); err != nil {
+		renderError(w, r, http.StatusBadRequest, err)
+		return
+	}
+
+	user, err := h.svc.RegisterStaff(r.Context(), req.Email, req.Password, req.Role)
+	if err != nil {
+		renderError(w, r, statusForError(err), err)
+		return
+	}
+
+	renderer.Render(w, r, renderer.Response{
+		Status: http.StatusCreated,
+		JSON: map[string]any{
+			"id":     user.ID,
+			"email":  user.Email,
+			"role":   user.Role,
+			"status": user.Status,
+		},
+		HTML: fmt.Sprintf(`<p>Staff account created for %s.</p>`, user.Email),
 	})
 }
 
@@ -316,6 +353,8 @@ func statusForError(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, ErrUserNotFound):
 		return http.StatusNotFound
+	case errors.Is(err, ErrInvalidRole):
+		return http.StatusBadRequest
 	default:
 		return http.StatusInternalServerError
 	}

@@ -61,4 +61,5 @@ var (
 	ErrTokenUsed          = errors.New("token already used")
 	ErrTokenRevoked       = errors.New("token revoked")
 	ErrWeakPassword       = errors.New("password must be at least 8 characters")
+	ErrInvalidRole        = errors.New("invalid role")
 )
