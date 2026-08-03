@@ -46,7 +46,7 @@ func clinicianFixture(t *testing.T, baseURL string, fakeMailer *FakeMailer, admi
 }
 
 func TestPrescriptionCreate_AsAuthoringClinician(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 	patientID, consultantID, clinicianToken := clinicianFixture(t, ts.URL, fakeMailer, adminToken, "author")
 
@@ -93,7 +93,7 @@ func TestPrescriptionCreate_AsAuthoringClinician(t *testing.T) {
 }
 
 func TestPrescriptionCreate_RejectsWithoutConsultantProfile(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 
 	patientUserID := RegisterVerifiedPatient(t, ts.URL, fakeMailer, "rxpatient-noprofile@example.com", "correcthorsebattery")
@@ -123,7 +123,7 @@ func TestPrescriptionCreate_RejectsWithoutConsultantProfile(t *testing.T) {
 }
 
 func TestPrescriptionCreate_RejectsAdminCaller(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 	patientID, _, _ := clinicianFixture(t, ts.URL, fakeMailer, adminToken, "adminreject")
 
@@ -136,7 +136,7 @@ func TestPrescriptionCreate_RejectsAdminCaller(t *testing.T) {
 }
 
 func TestPrescriptionCreate_ValidatesSessionBelongsToPatient(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 	patientID, consultantID, clinicianToken := clinicianFixture(t, ts.URL, fakeMailer, adminToken, "sessioncheck")
 
@@ -179,7 +179,7 @@ func TestPrescriptionCreate_ValidatesSessionBelongsToPatient(t *testing.T) {
 }
 
 func TestPrescriptionList_FiltersByPatientAndConsultant(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 	patientAID, _, clinicianAToken := clinicianFixture(t, ts.URL, fakeMailer, adminToken, "lista")
 	patientBID, consultantBID, clinicianBToken := clinicianFixture(t, ts.URL, fakeMailer, adminToken, "listb")

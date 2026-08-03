@@ -6,7 +6,7 @@ import (
 )
 
 func TestConsultantFlow_CreateListGetUpdate(t *testing.T) {
-	ts, _ := NewTestServer(t)
+	ts, _, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 	userID := RegisterStaffUser(t, ts.URL, adminToken, "consultant1@example.com", "correcthorsebattery", "clinician")
 
@@ -60,7 +60,7 @@ func TestConsultantFlow_CreateListGetUpdate(t *testing.T) {
 }
 
 func TestConsultantCreate_RejectsOutOfRangeCommission(t *testing.T) {
-	ts, _ := NewTestServer(t)
+	ts, _, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 	userID := RegisterStaffUser(t, ts.URL, adminToken, "consultant2@example.com", "correcthorsebattery", "clinician")
 
@@ -75,7 +75,7 @@ func TestConsultantCreate_RejectsOutOfRangeCommission(t *testing.T) {
 }
 
 func TestConsultantCreate_RequiresClinicianRoleUser(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 	patientID := RegisterVerifiedPatient(t, ts.URL, fakeMailer, "notaclinician@example.com", "correcthorsebattery")
 
@@ -90,7 +90,7 @@ func TestConsultantCreate_RequiresClinicianRoleUser(t *testing.T) {
 }
 
 func TestConsultantRoutes_ClinicianForbidden(t *testing.T) {
-	ts, _ := NewTestServer(t)
+	ts, _, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 	RegisterStaffUser(t, ts.URL, adminToken, "clinicianviewer@example.com", "correcthorsebattery", "clinician")
 

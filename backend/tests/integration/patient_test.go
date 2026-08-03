@@ -6,7 +6,7 @@ import (
 )
 
 func TestPatientFlow_CreateListGetUpdate(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 	userID := RegisterVerifiedPatient(t, ts.URL, fakeMailer, "patient1@example.com", "correcthorsebattery")
 
@@ -62,7 +62,7 @@ func TestPatientFlow_CreateListGetUpdate(t *testing.T) {
 }
 
 func TestPatientCreate_RequiresPatientRoleUser(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 	clinicianID := RegisterStaffUser(t, ts.URL, adminToken, "wrongrole@example.com", "correcthorsebattery", "clinician")
 	_ = fakeMailer
@@ -77,7 +77,7 @@ func TestPatientCreate_RequiresPatientRoleUser(t *testing.T) {
 }
 
 func TestPatientCreate_UnknownUserRejected(t *testing.T) {
-	ts, _ := NewTestServer(t)
+	ts, _, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 
 	resp := PostJSONAuth(t, ts.URL, "/patients", "mobile", adminToken, map[string]any{
@@ -90,7 +90,7 @@ func TestPatientCreate_UnknownUserRejected(t *testing.T) {
 }
 
 func TestPatientRoutes_NonAdminNonClinicianForbidden(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 	userID := RegisterVerifiedPatient(t, ts.URL, fakeMailer, "onlypatient@example.com", "correcthorsebattery")
 

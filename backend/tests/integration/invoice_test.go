@@ -17,7 +17,7 @@ func createSession(t *testing.T, baseURL, adminToken string, body map[string]any
 }
 
 func TestInvoiceCreate_FromSession(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 	patientID, consultantID, _, serviceID := sessionFixture(t, ts.URL, fakeMailer, adminToken, "invsession", 25, true)
 
@@ -70,7 +70,7 @@ func TestInvoiceCreate_FromSession(t *testing.T) {
 }
 
 func TestInvoiceCreate_FromPackage(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 	patientID, _, _, serviceID := sessionFixture(t, ts.URL, fakeMailer, adminToken, "invpackage", 25, true)
 
@@ -102,7 +102,7 @@ func TestInvoiceCreate_FromPackage(t *testing.T) {
 }
 
 func TestInvoiceCreate_RejectsNeitherOrBothSessionAndPackage(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 	patientID, consultantID, _, serviceID := sessionFixture(t, ts.URL, fakeMailer, adminToken, "invneither", 25, true)
 
@@ -137,7 +137,7 @@ func TestInvoiceCreate_RejectsNeitherOrBothSessionAndPackage(t *testing.T) {
 }
 
 func TestInvoiceCreate_RejectsUnknownSessionOrPackage(t *testing.T) {
-	ts, _ := NewTestServer(t)
+	ts, _, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 
 	resp := PostJSONAuth(t, ts.URL, "/invoices", "mobile", adminToken, map[string]any{
@@ -156,7 +156,7 @@ func TestInvoiceCreate_RejectsUnknownSessionOrPackage(t *testing.T) {
 }
 
 func TestInvoiceTemplatePlaceholders_UpsertAndList(t *testing.T) {
-	ts, _ := NewTestServer(t)
+	ts, _, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 
 	req, err := http.NewRequest(http.MethodPut, ts.URL+"/invoice-template-placeholders/clinic_name", bytes.NewReader([]byte(`{"value":"Acme Clinic"}`)))
@@ -191,7 +191,7 @@ func TestInvoiceTemplatePlaceholders_UpsertAndList(t *testing.T) {
 }
 
 func TestConsultantCommissionHistory(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 	patientID, consultantID, _, serviceID := sessionFixture(t, ts.URL, fakeMailer, adminToken, "commhistory", 25, true)
 

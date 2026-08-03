@@ -13,7 +13,7 @@ import (
 // per-IP limiter of its own — then shows register is blocked too, even
 // though register's own per-IP quota (3/min) is still untouched.
 func TestEmailGuardrail_GlobalAcrossEndpoints(t *testing.T) {
-	ts, _ := NewTestServer(t)
+	ts, _, _ := NewTestServer(t)
 
 	for i := 0; i < 5; i++ {
 		resp := PostJSON(t, ts.URL, "/auth/forgot-password", "mobile", map[string]string{

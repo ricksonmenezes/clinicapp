@@ -6,7 +6,7 @@ import (
 )
 
 func TestConsultantServiceCommission_SetListUpsert(t *testing.T) {
-	ts, _ := NewTestServer(t)
+	ts, _, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 
 	userID := RegisterStaffUser(t, ts.URL, adminToken, "commissionconsultant@example.com", "correcthorsebattery", "clinician")
@@ -57,7 +57,7 @@ func TestConsultantServiceCommission_SetListUpsert(t *testing.T) {
 }
 
 func TestConsultantServiceCommission_RejectsUnknownServiceOrInvalidRange(t *testing.T) {
-	ts, _ := NewTestServer(t)
+	ts, _, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 
 	userID := RegisterStaffUser(t, ts.URL, adminToken, "commissionconsultant2@example.com", "correcthorsebattery", "clinician")

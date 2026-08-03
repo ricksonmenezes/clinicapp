@@ -9,7 +9,7 @@ import (
 // PLAN.md's Testing strategy section: register -> FakeMailer captures the
 // email -> extract token -> verify -> login -> hit a protected endpoint.
 func TestAuthFlow_RegisterVerifyLoginProtected(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 
 	email := "e2e@example.com"
 	password := "correcthorsebattery"
@@ -67,7 +67,7 @@ func TestAuthFlow_RegisterVerifyLoginProtected(t *testing.T) {
 // X-Client-Type: web, asserting on redirects and httpOnly cookies instead
 // of a JSON body, per the renderer's documented web/mobile contract.
 func TestAuthFlow_WebClientUsesCookiesAndRedirects(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	client := NoRedirectClient(t)
 
 	email := "webflow@example.com"
@@ -118,7 +118,7 @@ func TestAuthFlow_WebClientUsesCookiesAndRedirects(t *testing.T) {
 }
 
 func TestRegister_DuplicateEmailRejected(t *testing.T) {
-	ts, _ := NewTestServer(t)
+	ts, _, _ := NewTestServer(t)
 	email := "dup@example.com"
 
 	PostJSON(t, ts.URL, "/auth/register", "mobile", map[string]string{
@@ -134,7 +134,7 @@ func TestRegister_DuplicateEmailRejected(t *testing.T) {
 }
 
 func TestLogin_WrongPasswordRejected(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	email := "wrongpass@example.com"
 
 	PostJSON(t, ts.URL, "/auth/register", "mobile", map[string]string{
@@ -152,7 +152,7 @@ func TestLogin_WrongPasswordRejected(t *testing.T) {
 }
 
 func TestLogin_UnverifiedEmailRejected(t *testing.T) {
-	ts, _ := NewTestServer(t)
+	ts, _, _ := NewTestServer(t)
 	email := "unverified@example.com"
 
 	PostJSON(t, ts.URL, "/auth/register", "mobile", map[string]string{
@@ -168,7 +168,7 @@ func TestLogin_UnverifiedEmailRejected(t *testing.T) {
 }
 
 func TestRefreshToken_RotatesAndRevokesOldToken(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	email := "refresh@example.com"
 
 	PostJSON(t, ts.URL, "/auth/register", "mobile", map[string]string{
@@ -200,7 +200,7 @@ func TestRefreshToken_RotatesAndRevokesOldToken(t *testing.T) {
 }
 
 func TestLogout_RevokesRefreshToken(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	email := "logout@example.com"
 
 	PostJSON(t, ts.URL, "/auth/register", "mobile", map[string]string{
@@ -227,7 +227,7 @@ func TestLogout_RevokesRefreshToken(t *testing.T) {
 }
 
 func TestForgotPassword_ResetFlow(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	email := "forgot@example.com"
 	oldPassword := "correcthorsebattery"
 	newPassword := "newcorrecthorsebattery"
@@ -272,7 +272,7 @@ func TestForgotPassword_ResetFlow(t *testing.T) {
 }
 
 func TestForgotPassword_UnknownEmailDoesNotLeak(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 
 	resp := PostJSON(t, ts.URL, "/auth/forgot-password", "mobile", map[string]string{
 		"email": "nobody-registered@example.com",
@@ -289,7 +289,7 @@ func TestForgotPassword_UnknownEmailDoesNotLeak(t *testing.T) {
 // the public register body is ignored, and the resulting account can never
 // reach an admin-only route.
 func TestRegister_CannotSelfAssignRole(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	email := "wannabeadmin@example.com"
 
 	resp := PostJSON(t, ts.URL, "/auth/register", "mobile", map[string]string{
@@ -317,7 +317,7 @@ func TestRegister_CannotSelfAssignRole(t *testing.T) {
 }
 
 func TestRegisterStaff_RequiresAdminAuth(t *testing.T) {
-	ts, _ := NewTestServer(t)
+	ts, _, _ := NewTestServer(t)
 
 	resp := PostJSON(t, ts.URL, "/auth/register-staff", "mobile", map[string]string{
 		"email": "staff@example.com", "password": "correcthorsebattery", "role": "clinician",
@@ -340,7 +340,7 @@ func TestRegisterStaff_RequiresAdminAuth(t *testing.T) {
 }
 
 func TestRegisterStaff_RejectsPatientRole(t *testing.T) {
-	ts, _ := NewTestServer(t)
+	ts, _, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 
 	resp := PostJSONAuth(t, ts.URL, "/auth/register-staff", "mobile", adminToken, map[string]string{
@@ -352,7 +352,7 @@ func TestRegisterStaff_RejectsPatientRole(t *testing.T) {
 }
 
 func TestResendVerification_NoEnumeration(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 
 	resp := PostJSON(t, ts.URL, "/auth/resend-verification", "mobile", map[string]string{
 		"email": "not-a-real-user@example.com",

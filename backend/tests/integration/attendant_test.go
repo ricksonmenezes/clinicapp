@@ -6,7 +6,7 @@ import (
 )
 
 func TestAttendantFlow_CreateListGetUpdate(t *testing.T) {
-	ts, _ := NewTestServer(t)
+	ts, _, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 	userID := RegisterStaffUser(t, ts.URL, adminToken, "attendant1@example.com", "correcthorsebattery", "attendant")
 
@@ -55,7 +55,7 @@ func TestAttendantFlow_CreateListGetUpdate(t *testing.T) {
 }
 
 func TestAttendantCreate_RequiresAttendantRoleUser(t *testing.T) {
-	ts, _ := NewTestServer(t)
+	ts, _, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 	clinicianID := RegisterStaffUser(t, ts.URL, adminToken, "notanattendant@example.com", "correcthorsebattery", "clinician")
 
@@ -69,7 +69,7 @@ func TestAttendantCreate_RequiresAttendantRoleUser(t *testing.T) {
 }
 
 func TestAttendantRoutes_RequireAuth(t *testing.T) {
-	ts, _ := NewTestServer(t)
+	ts, _, _ := NewTestServer(t)
 
 	if resp := Get(t, ts.URL, "/attendants", "mobile", "", nil); resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("list attendants without token: want 401, got %d", resp.StatusCode)

@@ -6,7 +6,7 @@ import (
 )
 
 func TestServiceFlow_CreateListGetUpdate(t *testing.T) {
-	ts, _ := NewTestServer(t)
+	ts, _, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 
 	var created map[string]any
@@ -65,7 +65,7 @@ func TestServiceFlow_CreateListGetUpdate(t *testing.T) {
 }
 
 func TestServiceCreate_RejectsInvalidInput(t *testing.T) {
-	ts, _ := NewTestServer(t)
+	ts, _, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 
 	resp := PostJSONAuth(t, ts.URL, "/services", "mobile", adminToken, map[string]any{
@@ -86,7 +86,7 @@ func TestServiceCreate_RejectsInvalidInput(t *testing.T) {
 }
 
 func TestServiceCreate_ForbiddenForNonAdmin(t *testing.T) {
-	ts, _ := NewTestServer(t)
+	ts, _, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 	RegisterStaffUser(t, ts.URL, adminToken, "clinicianservices@example.com", "correcthorsebattery", "clinician")
 

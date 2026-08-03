@@ -6,7 +6,7 @@ import (
 )
 
 func TestPackageFlow_CreateListGetUpdate(t *testing.T) {
-	ts, _ := NewTestServer(t)
+	ts, _, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 
 	var svc map[string]any
@@ -68,7 +68,7 @@ func TestPackageFlow_CreateListGetUpdate(t *testing.T) {
 }
 
 func TestPackageCreate_RejectsUnknownServiceOrInvalidInput(t *testing.T) {
-	ts, _ := NewTestServer(t)
+	ts, _, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 
 	resp := PostJSONAuth(t, ts.URL, "/packages", "mobile", adminToken, map[string]any{
@@ -99,7 +99,7 @@ func TestPackageCreate_RejectsUnknownServiceOrInvalidInput(t *testing.T) {
 }
 
 func TestPatientPackageFlow_SubscribeSeedsSessionsRemaining(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 
 	patientUserID := RegisterVerifiedPatient(t, ts.URL, fakeMailer, "packagepatient@example.com", "correcthorsebattery")
@@ -166,7 +166,7 @@ func TestPatientPackageFlow_SubscribeSeedsSessionsRemaining(t *testing.T) {
 }
 
 func TestPatientPackageSubscribe_RejectsUnknownPatientOrPackage(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 
 	patientUserID := RegisterVerifiedPatient(t, ts.URL, fakeMailer, "badsubscribe@example.com", "correcthorsebattery")

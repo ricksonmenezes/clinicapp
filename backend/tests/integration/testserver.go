@@ -18,15 +18,16 @@ const (
 )
 
 // NewTestServer spins up the full HTTP server (real test DB, injected
-// FakeMailer) behind an httptest.Server, and returns the FakeMailer so
-// tests can assert on outbound email. The server and its DB pool are
-// closed automatically via t.Cleanup. A bootstrap admin (TestAdminEmail /
-// TestAdminPassword) is seeded on every call.
-func NewTestServer(t *testing.T) (*httptest.Server, *FakeMailer) {
+// FakeMailer and FakeSMSSender) behind an httptest.Server, and returns both
+// fakes so tests can assert on outbound email/SMS. The server and its DB
+// pool are closed automatically via t.Cleanup. A bootstrap admin
+// (TestAdminEmail / TestAdminPassword) is seeded on every call.
+func NewTestServer(t *testing.T) (*httptest.Server, *FakeMailer, *FakeSMSSender) {
 	t.Helper()
 
 	pool := SetupTestDB(t)
 	fakeMailer := NewFakeMailer()
+	fakeSMS := NewFakeSMSSender()
 
 	cfg := &config.Config{
 		AppEnv:                 "local",
@@ -45,9 +46,9 @@ func NewTestServer(t *testing.T) (*httptest.Server, *FakeMailer) {
 		t.Fatalf("bootstrap test admin: %v", err)
 	}
 
-	router := server.NewRouter(pool, cfg, fakeMailer)
+	router := server.NewRouter(pool, cfg, fakeMailer, fakeSMS)
 	ts := httptest.NewServer(router)
 	t.Cleanup(ts.Close)
 
-	return ts, fakeMailer
+	return ts, fakeMailer, fakeSMS
 }

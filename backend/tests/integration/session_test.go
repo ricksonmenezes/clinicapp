@@ -41,7 +41,7 @@ func sessionFixture(t *testing.T, baseURL string, fakeMailer *FakeMailer, adminT
 }
 
 func TestSessionCreate_ConsultantDefaultCommission(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 	patientID, consultantID, attendantID, serviceID := sessionFixture(t, ts.URL, fakeMailer, adminToken, "default", 25, true)
 
@@ -81,7 +81,7 @@ func TestSessionCreate_ConsultantDefaultCommission(t *testing.T) {
 }
 
 func TestSessionCreate_ServiceOverrideCommission(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 	patientID, consultantID, _, serviceID := sessionFixture(t, ts.URL, fakeMailer, adminToken, "svcoverride", 25, true)
 
@@ -113,7 +113,7 @@ func TestSessionCreate_ServiceOverrideCommission(t *testing.T) {
 }
 
 func TestSessionCreate_SessionOverrideCommissionWinsOverService(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 	patientID, consultantID, _, serviceID := sessionFixture(t, ts.URL, fakeMailer, adminToken, "sessoverride", 25, true)
 
@@ -143,7 +143,7 @@ func TestSessionCreate_SessionOverrideCommissionWinsOverService(t *testing.T) {
 }
 
 func TestSessionCreate_AttendantOnlyServiceHasNoCommissionSnapshot(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 	patientID, _, attendantID, serviceID := sessionFixture(t, ts.URL, fakeMailer, adminToken, "attendantonly", 25, false)
 
@@ -166,7 +166,7 @@ func TestSessionCreate_AttendantOnlyServiceHasNoCommissionSnapshot(t *testing.T)
 }
 
 func TestSessionCreate_RequiresConsultantWhenServiceDemandsIt(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 	patientID, _, _, serviceID := sessionFixture(t, ts.URL, fakeMailer, adminToken, "needconsult", 25, true)
 
@@ -181,7 +181,7 @@ func TestSessionCreate_RequiresConsultantWhenServiceDemandsIt(t *testing.T) {
 }
 
 func TestSessionCreate_PackageSessionDecrementsRemainingAndBlocksWhenExhausted(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 	patientID, consultantID, _, serviceID := sessionFixture(t, ts.URL, fakeMailer, adminToken, "package", 25, true)
 
@@ -230,7 +230,7 @@ func TestSessionCreate_PackageSessionDecrementsRemainingAndBlocksWhenExhausted(t
 }
 
 func TestSessionCreate_RejectsPatientPackageBelongingToAnotherPatient(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 	patientID, consultantID, _, serviceID := sessionFixture(t, ts.URL, fakeMailer, adminToken, "mismatchowner", 25, true)
 	otherPatientID, _, _, _ := sessionFixture(t, ts.URL, fakeMailer, adminToken, "mismatchother", 25, true)
@@ -260,7 +260,7 @@ func TestSessionCreate_RejectsPatientPackageBelongingToAnotherPatient(t *testing
 }
 
 func TestSessionList_FiltersByPatientAndConsultant(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 	patientA, consultantA, _, serviceID := sessionFixture(t, ts.URL, fakeMailer, adminToken, "historya", 25, true)
 	patientB, consultantB, _, _ := sessionFixture(t, ts.URL, fakeMailer, adminToken, "historyb", 25, true)

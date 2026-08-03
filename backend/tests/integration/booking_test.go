@@ -52,7 +52,7 @@ func registerVerifiedPatientWithProfile(t *testing.T, baseURL string, fakeMailer
 }
 
 func TestPatientSelfServiceProfile(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 
 	token, patientID := registerVerifiedPatientWithProfile(t, ts.URL, fakeMailer, "selfprofile@example.com", "Self Profile")
@@ -84,7 +84,7 @@ func TestPatientSelfServiceProfile(t *testing.T) {
 }
 
 func TestBooking_FullFlow_WithConsultantAutoAssignment(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 
 	var svc map[string]any
@@ -184,8 +184,55 @@ func TestBooking_FullFlow_WithConsultantAutoAssignment(t *testing.T) {
 	_ = otherPatientID
 }
 
+// TestBooking_SendsSMSConfirmationWhenPhoneOnFile covers the M8 addition:
+// booking confirmation SMS via PhilSMS. registerVerifiedPatientWithProfile
+// doesn't set a phone (patients.phone is optional), so this test builds its
+// own profile with one to exercise the send path; the "no phone on file"
+// case is already implicitly covered by every other booking test never
+// getting an SMS.
+func TestBooking_SendsSMSConfirmationWhenPhoneOnFile(t *testing.T) {
+	ts, fakeMailer, fakeSMS := NewTestServer(t)
+	adminToken := LoginAdmin(t, ts.URL)
+
+	var svc map[string]any
+	PostJSONAuth(t, ts.URL, "/services", "mobile", adminToken, map[string]any{
+		"name": "SMSCheckup", "price": 100, "requires_consultant": false,
+	}, &svc)
+	serviceID, _ := svc["id"].(string)
+
+	email := "smspatient@example.com"
+	RegisterVerifiedPatient(t, ts.URL, fakeMailer, email, "correcthorsebattery")
+	patientToken := loginPatientToken(t, ts.URL, email)
+
+	var profile map[string]any
+	resp := PostJSONAuth(t, ts.URL, "/patients/me", "mobile", patientToken, map[string]any{
+		"full_name": "SMS Patient", "phone": "09171234567",
+	}, &profile)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create own patient profile with phone: want 201, got %d (%v)", resp.StatusCode, profile)
+	}
+
+	slot := nextBookableSlot(t)
+	var created map[string]any
+	resp = PostJSONAuth(t, ts.URL, "/bookings", "mobile", patientToken, map[string]any{
+		"service_id": serviceID, "scheduled_at": slot.Format(time.RFC3339),
+	}, &created)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create booking: want 201, got %d (%v)", resp.StatusCode, created)
+	}
+
+	// 09171234567 normalizes to 639171234567 — see sms.NormalizePHPhone.
+	msg, ok := fakeSMS.LastTo("639171234567")
+	if !ok {
+		t.Fatalf("expected a booking confirmation SMS sent to 639171234567, got sent=%v", fakeSMS.Sent)
+	}
+	if msg.Body == "" {
+		t.Fatalf("expected a non-empty confirmation SMS body")
+	}
+}
+
 func TestBooking_AttendantOnlyServiceNeedsNoConsultant(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 
 	var svc map[string]any
@@ -210,7 +257,7 @@ func TestBooking_AttendantOnlyServiceNeedsNoConsultant(t *testing.T) {
 }
 
 func TestBooking_RejectsWithoutPatientProfile(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 
 	var svc map[string]any
@@ -231,7 +278,7 @@ func TestBooking_RejectsWithoutPatientProfile(t *testing.T) {
 }
 
 func TestBooking_RejectsNonPatientCaller(t *testing.T) {
-	ts, _ := NewTestServer(t)
+	ts, _, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 
 	var svc map[string]any
@@ -249,7 +296,7 @@ func TestBooking_RejectsNonPatientCaller(t *testing.T) {
 }
 
 func TestBooking_RejectsSlotOffTheGrid(t *testing.T) {
-	ts, fakeMailer := NewTestServer(t)
+	ts, fakeMailer, _ := NewTestServer(t)
 	adminToken := LoginAdmin(t, ts.URL)
 
 	var svc map[string]any
@@ -284,7 +331,7 @@ func TestBooking_RejectsSlotOffTheGrid(t *testing.T) {
 }
 
 func TestAvailability_ClosedOnSunday(t *testing.T) {
-	ts, _ := NewTestServer(t)
+	ts, _, _ := NewTestServer(t)
 	tok := LoginAdmin(t, ts.URL)
 
 	var svc map[string]any
