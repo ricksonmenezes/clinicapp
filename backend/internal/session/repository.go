@@ -183,6 +183,43 @@ func (r *Repository) List(ctx context.Context, filter ListFilter) ([]*Session, e
 	return sessions, nil
 }
 
+// SlotOccupancy is a lightweight projection of a session used by
+// internal/booking to compute slot availability — just enough to check
+// whether a given service/consultant is already taken at a given time,
+// without paying the attendant/commission-snapshot hydrate cost that
+// List/GetByID incur.
+type SlotOccupancy struct {
+	ServiceID    string
+	ConsultantID *string
+	ScheduledAt  time.Time
+}
+
+// ListOccupancyInRange returns the service/consultant/time of every session
+// scheduled in [start, end).
+func (r *Repository) ListOccupancyInRange(ctx context.Context, start, end time.Time) ([]SlotOccupancy, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT service_id, consultant_id, scheduled_at FROM sessions
+		WHERE scheduled_at >= $1 AND scheduled_at < $2
+	`, start, end)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var occupied []SlotOccupancy
+	for rows.Next() {
+		var o SlotOccupancy
+		if err := rows.Scan(&o.ServiceID, &o.ConsultantID, &o.ScheduledAt); err != nil {
+			return nil, err
+		}
+		occupied = append(occupied, o)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return occupied, nil
+}
+
 // ListCommissionHistory returns every commission snapshot earned by a
 // consultant, most recent first — the rate and resolution_source per
 // session that CLAUDE.md's commission-history requirement calls for.

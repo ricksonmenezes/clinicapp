@@ -42,6 +42,12 @@ func (s *Service) Get(ctx context.Context, id string) (*Patient, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
+// GetByUserID resolves the caller's own patient profile — used by the
+// self-service /patients/me routes.
+func (s *Service) GetByUserID(ctx context.Context, userID string) (*Patient, error) {
+	return s.repo.GetByUserID(ctx, userID)
+}
+
 func (s *Service) List(ctx context.Context) ([]*Patient, error) {
 	return s.repo.List(ctx)
 }

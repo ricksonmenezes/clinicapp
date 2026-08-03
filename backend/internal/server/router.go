@@ -14,6 +14,7 @@ import (
 
 	"clinicapp/backend/internal/attendant"
 	"clinicapp/backend/internal/auth"
+	"clinicapp/backend/internal/booking"
 	"clinicapp/backend/internal/config"
 	"clinicapp/backend/internal/consultant"
 	"clinicapp/backend/internal/invoice"
@@ -72,9 +73,10 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer) http.Han
 	)
 
 	sessionRepo := session.NewRepository(pool)
-	sessionHandler := session.NewHandler(session.NewService(
+	sessionSvc := session.NewService(
 		sessionRepo, patientRepo, serviceRepo, consultantRepo, attendantRepo, patientPackageRepo,
-	))
+	)
+	sessionHandler := session.NewHandler(sessionSvc)
 
 	placeholderRepo := invoice.NewPlaceholderRepository(pool)
 	invoiceHandler := invoice.NewHandler(invoice.NewService(
@@ -86,6 +88,10 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer) http.Han
 	prescriptionHandler := prescription.NewHandler(prescription.NewService(
 		prescription.NewRepository(pool), consultantRepo, patientRepo, sessionRepo, placeholderRepo,
 		cfg.PrescriptionStorageDir,
+	))
+
+	bookingHandler := booking.NewHandler(booking.NewService(
+		sessionSvc, sessionRepo, serviceRepo, consultantRepo, patientRepo, authRepo, m,
 	))
 
 	registerLimiter := middleware.NewRateLimiter(3, time.Minute)
@@ -114,11 +120,17 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer) http.Han
 	adminOnly := middleware.RequireRole(auth.RoleAdmin)
 	adminOrClinician := middleware.RequireRole(auth.RoleAdmin, auth.RoleClinician)
 	clinicianOnly := middleware.RequireRole(auth.RoleClinician)
+	patientOnly := middleware.RequireRole(auth.RolePatient)
 
 	mux.Handle("POST /auth/register-staff", authRequired(adminOnly(http.HandlerFunc(authHandler.RegisterStaff))))
 
 	mux.Handle("POST /patients", authRequired(adminOnly(http.HandlerFunc(patientHandler.Create))))
 	mux.Handle("GET /patients", authRequired(adminOrClinician(http.HandlerFunc(patientHandler.List))))
+	// /patients/me is the customer-portal self-service profile (patient-only,
+	// resolved from the JWT subject) — registered before /patients/{id} so
+	// Go's ServeMux picks the more specific literal match.
+	mux.Handle("POST /patients/me", authRequired(patientOnly(http.HandlerFunc(patientHandler.CreateSelf))))
+	mux.Handle("GET /patients/me", authRequired(patientOnly(http.HandlerFunc(patientHandler.GetSelf))))
 	mux.Handle("GET /patients/{id}", authRequired(adminOrClinician(http.HandlerFunc(patientHandler.Get))))
 	mux.Handle("PATCH /patients/{id}", authRequired(adminOnly(http.HandlerFunc(patientHandler.Update))))
 
@@ -172,6 +184,17 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer) http.Han
 	mux.Handle("GET /prescriptions", authRequired(clinicianOnly(http.HandlerFunc(prescriptionHandler.List))))
 	mux.Handle("GET /prescriptions/{id}", authRequired(clinicianOnly(http.HandlerFunc(prescriptionHandler.Get))))
 	mux.Handle("GET /prescriptions/{id}/pdf", authRequired(clinicianOnly(http.HandlerFunc(prescriptionHandler.DownloadPDF))))
+
+	// Customer-facing portal (PLAN.md Module 8). GET /availability is open to
+	// any authenticated role, same as GET /services — it's non-sensitive
+	// calendar data staff may also want to check. Booking creation sends a
+	// confirmation email, so it goes through the same account-wide
+	// emailGuardrail as every other email-triggering endpoint (CLAUDE.md's
+	// "Email sending guardrails").
+	mux.Handle("GET /availability", authRequired(http.HandlerFunc(bookingHandler.Availability)))
+	mux.Handle("POST /bookings", authRequired(patientOnly(emailGuardrail.Middleware(http.HandlerFunc(bookingHandler.Create)))))
+	mux.Handle("GET /bookings", authRequired(patientOnly(http.HandlerFunc(bookingHandler.List))))
+	mux.Handle("GET /bookings/{id}", authRequired(patientOnly(http.HandlerFunc(bookingHandler.Get))))
 
 	return middleware.ClientType(mux)
 }

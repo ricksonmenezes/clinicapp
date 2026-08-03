@@ -54,6 +54,25 @@ func (r *Repository) GetByID(ctx context.Context, id string) (*Patient, error) {
 	return p, nil
 }
 
+// GetByUserID looks up a patient profile by the underlying auth user id —
+// used to resolve "the patient profile of whoever is calling this endpoint"
+// (self-service portal routes) rather than trusting a caller-supplied
+// patient_id, same pattern as consultant.Repository.GetByUserID.
+func (r *Repository) GetByUserID(ctx context.Context, userID string) (*Patient, error) {
+	p := &Patient{}
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, user_id, full_name, dob, phone, notes, created_at, updated_at
+		FROM patients WHERE user_id = $1
+	`, userID).Scan(&p.ID, &p.UserID, &p.FullName, &p.DOB, &p.Phone, &p.Notes, &p.CreatedAt, &p.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return p, nil
+}
+
 func (r *Repository) List(ctx context.Context) ([]*Patient, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, user_id, full_name, dob, phone, notes, created_at, updated_at
