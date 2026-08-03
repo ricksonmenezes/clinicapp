@@ -42,11 +42,8 @@ The server starts on `localhost:8080` by default (`PORT` env overrides).
 | `JWT_SECRET` | HMAC signing key for access tokens | generate locally | managed secret |
 | `JWT_EXPIRY_MINUTES` | Access token TTL | `15` | `15` |
 | `REFRESH_TOKEN_EXPIRY_DAYS` | Refresh token TTL | `30` | `30` |
-| `SMTP_HOST` | Outbound mail server host | mailtrap or similar | real SMTP |
-| `SMTP_PORT` | SMTP port | `587` | `587` |
-| `SMTP_USER` | SMTP username | local creds | managed secret |
-| `SMTP_PASS` | SMTP password | local creds | managed secret |
-| `SMTP_FROM` | From address on outbound emails | `noreply@clinic.local` | real address |
+| `RESEND_API_KEY` | Resend API key | sandbox key from resend.com | managed secret |
+| `MAIL_FROM` | From address on outbound emails | `onboarding@resend.dev` (Resend sandbox address) | verified domain address, e.g. `noreply@yourclinic.com` |
 | `SMS_PROVIDER` | SMS provider name (TBD) | — | TBD |
 | `SMS_API_KEY` | SMS provider API key | — | managed secret |
 | `BASE_URL` | Public base URL (used in email links) | `http://localhost:8080` | `https://<domain>` |
@@ -84,7 +81,7 @@ clinicapp/
 │       ├── session/
 │       ├── invoice/
 │       ├── prescription/
-│       ├── mailer/        ← SMTP interface + implementation
+│       ├── mailer/        ← Resend interface + implementation (api.resend.com/emails)
 │       ├── sms/           ← SMS interface (provider plugged in when confirmed)
 │       └── store/         ← DB pool, migration runner
 │
@@ -110,17 +107,13 @@ clinicapp/
   A `schema_migrations` table tracks applied migrations.
 - **Local setup**: create a local Postgres DB, set `DB_DSN` in `backend/.env`.
 
-This machine has no Docker, so Postgres and Mailpit (SMTP test sink) run as native Homebrew
-services instead of containers:
+This machine has no Docker, so Postgres runs as a native Homebrew service instead of a container:
 ```bash
-brew install postgresql@16 mailpit
+brew install postgresql@16
 brew services start postgresql@16
-brew services start mailpit
 createdb clinicapp_dev
 createdb clinicapp_test   # used by backend/tests/integration
 ```
-Mailpit's web UI is at `http://localhost:8025`; point `SMTP_HOST=localhost SMTP_PORT=1025` in
-`backend/.env` to route local outbound mail there instead of a real SMTP server.
 
 To reset your local DB and re-apply all migrations from scratch:
 ```bash
@@ -206,7 +199,6 @@ A failing test aborts the push — nothing broken reaches GitHub.
 **CI (GitHub Actions)**
 Every push and pull request triggers `.github/workflows/ci.yml` which:
 - Starts a Postgres service container (`clinicapp_test` DB, migrations applied)
-- Starts a Mailpit service container (SMTP sink for email flow tests)
 - Runs `go test ./...`
 - Fails the build and blocks merging if any test is red
 
@@ -219,7 +211,7 @@ the pre-push hook is a convenience to catch failures before they hit CI.
 
 ### Security
 - **Never** commit `backend/.env` or any file containing real secrets to git.
-- **Never** hardcode `JWT_SECRET`, `SMTP_PASS`, `SMS_API_KEY`, or any credential in source code.
+- **Never** hardcode `JWT_SECRET`, `RESEND_API_KEY`, `SMS_API_KEY`, or any credential in source code.
 - **Never** log plaintext passwords or raw tokens anywhere.
 - Refresh tokens are UUIDs stored in the DB — revoke them individually on logout and in bulk on password reset.
 - Password hashing: bcrypt, cost 12 minimum.
@@ -248,6 +240,19 @@ the pre-push hook is a convenience to catch failures before they hit CI.
 ### PDF / invoices
 - Invoice template placeholders live in the DB — never hardcode clinic name, address, or footer text in templates.
 - Commission history must show the `resolution_source` (session override / service override / consultant default) alongside the rate.
+
+### Email sending guardrails (Resend free tier)
+Resend's free tier caps outbound email at **100/day** and **3,000/month**, account-wide — this
+ceiling is shared across every user and IP, not per-recipient like the existing per-email
+resend-verification limit (§9). Enforce a **global** guardrail in middleware, applied to every
+endpoint that sends an email (`register`, `resend-verification`, `forgot-password`,
+`reset-password` — it sends a "password changed" confirmation email):
+- More than **5** email-triggering requests in a rolling minute → stop servicing further requests.
+- More than **20** in a rolling hour → stop servicing further requests.
+- Hitting **100** in a day → stop servicing further requests entirely. Resume only once a full
+  24 hours have elapsed since the 100th email was sent — a rolling cooldown keyed off that
+  request, not a reset at midnight.
+This is additive to, not a replacement for, the per-email-address resend-verification limit.
 
 ### Testing
 - Never mark a milestone complete unless `go test ./...` is green.
@@ -279,6 +284,15 @@ the pre-push hook is a convenience to catch failures before they hit CI.
   `admin`) can only be created via `POST /auth/register-staff`, which requires an authenticated
   `admin` bearer token. The very first admin comes from `ADMIN_BOOTSTRAP_EMAIL` /
   `ADMIN_BOOTSTRAP_PASSWORD` (idempotent — safe to leave set, only creates the account once).
+- **Resend sender domain**: the `MAIL_FROM` address must use a domain you have verified
+  in the Resend dashboard (resend.com → Domains). Using an unverified domain will cause
+  all emails to silently fail. During local dev you can use the Resend test address
+  `onboarding@resend.dev` (only delivers to your Resend account's own email).
+- **Email verification testing locally**: the Resend sandbox never delivers to a real inbox —
+  emails are visible only in the Resend dashboard (resend.com → Emails tab). To test the
+  verify-email flow locally, copy the token directly from your DB or server logs and call
+  `GET /auth/verify-email?token=<that-token>` manually (curl or browser). Do not set up
+  Mailpit — it is no longer in the stack.
 
 ---
 

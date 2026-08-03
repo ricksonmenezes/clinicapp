@@ -62,6 +62,47 @@ instructions.
 
 ## Decision log
 
+- **2026-08-03** (Resend migration — implemented): The Resend switch and Mailpit removal
+  described in the two entries below are now implemented, not just documented.
+  `internal/mailer` replaced `SMTPMailer` with `ResendMailer` (`POST api.resend.com/emails`,
+  stdlib `net/http` only, no new dependency). `internal/config` replaced `SMTPHost/Port/User/
+  Pass/From` with `ResendAPIKey`/`MailFrom` (default `onboarding@resend.dev`). `cmd/server/main.go`
+  and `.env.example`/`backend/.env` updated to match. `.github/workflows/ci.yml`'s unused Mailpit
+  service container removed. New `internal/middleware.EmailGuardrail` enforces the account-wide
+  5/min, 20/hour, 100/day throttle (with the rolling 24h cooldown once the daily cap is hit) on
+  `register`, `resend-verification`, `forgot-password`, and `reset-password` — wired in
+  `internal/server/router.go` alongside (not replacing) the existing per-IP `RateLimiter`s.
+  `RateLimiter` and the new guardrail both take an injectable clock internally so the cooldown
+  logic is unit-testable without real sleeps (`internal/middleware/emailguardrail_test.go`).
+  New integration test (`email_guardrail_test.go`) proves the throttle is a single account-wide
+  bucket shared across endpoints, not per-endpoint/per-IP. `go test ./...` green. **Still
+  outstanding**: `RESEND_API_KEY` in `backend/.env` is blank — a real (sandbox is fine) key from
+  resend.com must be added before `register`/etc. will actually succeed against the live Resend
+  API in local dev; without it the mailer call returns a 401 and the request fails.
+- **2026-08-03** (M1 planning): Mailpit dropped from the stack entirely. `internal/mailer` will
+  call the Resend HTTP API directly (`api.resend.com/emails`) — no SMTP layer, not even for local
+  dev. Local dev uses the Resend sandbox key; emails are inspectable in the Resend dashboard but
+  never delivered to real inboxes. To test the verify-email flow locally, copy the token from
+  DB/logs and hit `GET /auth/verify-email?token=<token>` manually. `SMTP_*` env vars removed;
+  replaced with `RESEND_API_KEY` and `MAIL_FROM`. **Docs-only so far** — `.github/workflows/ci.yml`
+  still starts a Mailpit service container (currently unused dead weight, since Go tests never
+  hit it — they use FakeMailer in-process) and `internal/mailer/mailer.go` still implements
+  `SMTPMailer`. Removing the CI service block and swapping in a `ResendMailer` are pending
+  implementation follow-ups.
+- **2026-08-03** (mail provider change): Mail provider switched to **Resend** (resend.com),
+  superseding M1's original SMTP-based `internal/mailer` implementation. `internal/mailer/` will
+  implement the Resend REST API (`POST https://api.resend.com/emails` with `Authorization: Bearer
+  <RESEND_API_KEY>`) — no SMTP dependency. Sender domain must be verified in the Resend dashboard
+  before transactional email works in prod (`onboarding@resend.dev` works for local dev testing
+  only). Free tier caps: **100 emails/day, 3,000/month, account-wide**. New guardrail (see
+  `CLAUDE.md`'s Hard Constraints → "Email sending guardrails"): a global, not per-IP, throttle on
+  every email-sending endpoint (`register`, `resend-verification`, `forgot-password`,
+  `reset-password`) — more than
+  5/min or 20/hour rejects further requests; hitting the 100/day cap stops servicing new requests
+  until a full 24 hours have passed since the 100th email of that window, rather than resetting at
+  midnight. **This is a docs-only change so far** — `internal/mailer` still implements `SMTPMailer`
+  (see `backend/internal/mailer/mailer.go`); swapping in a `ResendMailer` and adding the new global
+  rate-limit middleware are implementation follow-ups, not yet done.
 - **2026-08-03** (M3): Services & packages complete. New `internal/service` package (domain
   type `Service`; business-logic layer named `Manager` instead of the usual `Service`/`NewService`
   convention, since that name is already taken by the package's own entity type) with full CRUD —

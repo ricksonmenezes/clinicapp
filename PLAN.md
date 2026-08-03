@@ -140,7 +140,7 @@ clinicapp/
 │       ├── session/
 │       ├── invoice/
 │       ├── prescription/
-│       ├── mailer/        ← SMTP abstraction (interface; swap provider without rewrite)
+│       ├── mailer/        ← Resend HTTP API (interface; swap provider without rewrite)
 │       ├── sms/           ← SMS abstraction (interface; provider TBD)
 │       └── store/         ← DB connection, migrations
 │
@@ -378,6 +378,12 @@ AuthMiddleware         → validates JWT; attaches claims to context; skips /aut
 RateLimitMiddleware    → per-IP limits: login 5/min, register 3/min, resend-verification 3/hr
 ```
 
+Separately from the per-IP limits above, every email-sending endpoint (register,
+resend-verification, forgot-password, reset-password) is also throttled **globally**, account-wide — see
+`CLAUDE.md`'s Hard Constraints for the exact thresholds. This exists because Resend's free tier
+(the chosen mail provider) caps outbound email at 100/day and 3,000/month regardless of which
+user or IP triggered the send.
+
 ---
 
 ## API surface (Phase 1 — partial)
@@ -422,9 +428,7 @@ before that milestone is marked complete.
 |---|---|---|
 | Unit tests | Go `testing` package | Pure logic: commission resolution, token generation, password hashing |
 | Integration tests | Go `net/http/httptest` + test DB | Full request → handler → DB → response chain per endpoint |
-| Email flow | FakeMailer (in-process) | Captures outbound emails in memory; tests extract tokens without real SMTP |
-| Local dev email | Mailpit (Docker, port 1025/8025) | Real SMTP sink for manual inspection during development |
-| CI email | Mailpit service container | Same as local, wired into GitHub Actions |
+| Email flow | FakeMailer (in-process) | Captures outbound emails in memory; tests extract tokens without calling the real Resend API |
 
 ### Integration test harness (scaffolded in M1, extended each milestone)
 
@@ -454,21 +458,20 @@ Hit GET /patients (protected) with access token
   → assert 200 (not 401)
 ```
 
-### Mailpit for local dev
+### Testing the verify-email flow locally
 
-Run alongside Postgres:
-```bash
-docker run -d -p 1025:1025 -p 8025:8025 axllent/mailpit
-```
-Set `SMTP_HOST=localhost SMTP_PORT=1025` in `backend/.env`.
-Browse caught emails at `http://localhost:8025`.
+There is no local SMTP sink in this stack — `internal/mailer` calls the Resend HTTP API
+directly, even in local dev, using a Resend sandbox key. Sandbox emails never reach a real
+inbox; they're visible only in the Resend dashboard (resend.com → Emails tab). To exercise
+`GET /auth/verify-email` manually, copy the token straight from the DB or server logs and call
+the endpoint directly (curl or browser) instead of clicking a link in an inbox.
 
 ---
 
 ## Milestones
 
 - **M0** — Repo skeleton: directory structure, `PLAN.md`, `CLAUDE.md`, `PROGRESS.md`, `.gitignore`, `.env.example`, `go.mod`. GitHub repo created and pushed.
-- **M1** — Auth module: DB migrations (users, tokens tables), register/verify/login/refresh/logout/forgot-password/reset-password endpoints, mailer abstraction (SMTP), middleware (auth, client-type, rate limit), renderer (web HTML vs mobile JSON). Integration test harness scaffolded. `go test ./...` green.
+- **M1** — Auth module: DB migrations (users, tokens tables), register/verify/login/refresh/logout/forgot-password/reset-password endpoints, mailer abstraction (Resend), middleware (auth, client-type, rate limit), renderer (web HTML vs mobile JSON). Integration test harness scaffolded. `go test ./...` green.
 - **M2** — Patient & consultant management: profile CRUD, commission config (global + per-service override), attendant profiles. Backoffice HTMX pages for each. Tests green.
 - **M3** — Services & packages: service CRUD, package definition, patient package subscription. Backoffice pages. Tests green.
 - **M4** — Session management: session recording, commission resolution (session → service → default), snapshot storage, session history per patient and per consultant. Tests green.
@@ -483,7 +486,7 @@ Browse caught emails at `http://localhost:8025`.
 ## Verification per milestone
 
 - **M0**: repo on GitHub, all three doc files present, `go mod tidy` clean.
-- **M1**: `go test ./...` green with no manual steps. Automated integration test suite covers: POST /auth/register → FakeMailer captures email → token extracted → GET /auth/verify-email → JWT issued → POST /auth/login → tokens returned → protected endpoint returns 200. Real SMTP path verified locally via Mailpit.
+- **M1**: `go test ./...` green with no manual steps. Automated integration test suite covers: POST /auth/register → FakeMailer captures email → token extracted → GET /auth/verify-email → JWT issued → POST /auth/login → tokens returned → protected endpoint returns 200. Real Resend path verified manually by copying the token from the Resend dashboard/DB and hitting verify-email directly.
 - **M2**: backoffice pages load; patient/consultant CRUD round-trips via HTMX and JSON. Commission override stored and readable. Tests green.
 - **M3**: service CRUD round-trips; package created and assigned to patient. Tests green.
 - **M4**: session recorded with commission snapshot; history queries return correct results for patient and consultant views. Tests green.
