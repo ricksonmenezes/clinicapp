@@ -19,6 +19,7 @@ import (
 	"clinicapp/backend/internal/mailer"
 	"clinicapp/backend/internal/middleware"
 	"clinicapp/backend/internal/patient"
+	"clinicapp/backend/internal/service"
 )
 
 // Bootstrap creates the configured admin account if it doesn't exist yet.
@@ -51,6 +52,7 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer) http.Han
 	patientHandler := patient.NewHandler(patient.NewService(patient.NewRepository(pool), authRepo))
 	consultantHandler := consultant.NewHandler(consultant.NewService(consultant.NewRepository(pool), authRepo))
 	attendantHandler := attendant.NewHandler(attendant.NewService(attendant.NewRepository(pool), authRepo))
+	serviceHandler := service.NewHandler(service.NewManager(service.NewRepository(pool)))
 
 	registerLimiter := middleware.NewRateLimiter(3, time.Minute)
 	loginLimiter := middleware.NewRateLimiter(5, time.Minute)
@@ -88,6 +90,13 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer) http.Han
 	mux.Handle("GET /attendants", authRequired(adminOnly(http.HandlerFunc(attendantHandler.List))))
 	mux.Handle("GET /attendants/{id}", authRequired(adminOnly(http.HandlerFunc(attendantHandler.Get))))
 	mux.Handle("PATCH /attendants/{id}", authRequired(adminOnly(http.HandlerFunc(attendantHandler.Update))))
+
+	// /services is readable by any authenticated role (patients browse in the
+	// future customer portal) but writable by admin only, per PLAN.md's API table.
+	mux.Handle("POST /services", authRequired(adminOnly(http.HandlerFunc(serviceHandler.Create))))
+	mux.Handle("GET /services", authRequired(http.HandlerFunc(serviceHandler.List)))
+	mux.Handle("GET /services/{id}", authRequired(http.HandlerFunc(serviceHandler.Get)))
+	mux.Handle("PATCH /services/{id}", authRequired(adminOnly(http.HandlerFunc(serviceHandler.Update))))
 
 	return middleware.ClientType(mux)
 }
