@@ -10,7 +10,7 @@ instructions.
 
 - [x] **M0** — Repo skeleton: directory structure, `PLAN.md`, `CLAUDE.md`, `PROGRESS.md`,
       `.gitignore`, `.env.example`, `go.mod`. GitHub repo created and pushed.
-- [ ] **M1** — Auth module: DB migrations (users + token tables + user_providers stub), all
+- [x] **M1** — Auth module: DB migrations (users + token tables + user_providers stub), all
       auth endpoints (register, verify-email, resend-verification, login, refresh, logout,
       forgot-password, reset-password), mailer abstraction (SMTP), middleware (auth JWT,
       client-type, rate limit), renderer (web HTML fragment vs mobile JSON).
@@ -57,6 +57,19 @@ instructions.
 
 ## Decision log
 
+- **2026-08-03** (M1): Auth module complete. `internal/config`, `internal/store` (migration
+  runner against numbered SQL files in `migrations/`), `internal/mailer` (SMTP, Mailpit-
+  compatible), `internal/renderer` (X-Client-Type dispatch), `internal/middleware`
+  (client-type, JWT auth, per-IP rate limiting), `internal/auth` (register, verify-email,
+  resend-verification, login, refresh, logout, forgot-password, reset-password), wired via
+  `internal/server.NewRouter` (shared by `cmd/server/main.go` and the integration test
+  harness). `backend/tests/integration/` scaffolded per the testing strategy below — 10 e2e
+  tests plus unit tests for JWT and the migration statement splitter. `go test ./...` green
+  (15 tests) with zero manual steps. Local dev environment: PostgreSQL 16 and Mailpit both
+  installed via Homebrew (no Docker available on this machine) and running as background
+  services; `clinicapp_dev` and `clinicapp_test` databases created locally. Pre-push hook
+  (`scripts/install-hooks.sh`) and GitHub Actions CI (`.github/workflows/ci.yml`, Postgres +
+  Mailpit service containers) both run `go test ./...` as a hard gate.
 - **2026-08-03** (M1 planning): Testing strategy decided. All milestone verification automated
   via `go test ./...` — no manual curl steps. Integration test harness lives in
   `backend/tests/integration/`. FakeMailer (in-process) used for email flow tests; Mailpit

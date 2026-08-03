@@ -103,9 +103,22 @@ clinicapp/
 ## 5. Database
 
 - **Engine**: PostgreSQL
-- **Migrations**: plain numbered SQL files in `migrations/`, applied at startup via an embedded
-  migration runner in `internal/store`. A `schema_migrations` table tracks applied migrations.
+- **Migrations**: plain numbered SQL files in `migrations/`, applied at startup by the migration
+  runner in `internal/store` (reads `../migrations` relative to the `backend/` working directory).
+  A `schema_migrations` table tracks applied migrations.
 - **Local setup**: create a local Postgres DB, set `DB_DSN` in `backend/.env`.
+
+This machine has no Docker, so Postgres and Mailpit (SMTP test sink) run as native Homebrew
+services instead of containers:
+```bash
+brew install postgresql@16 mailpit
+brew services start postgresql@16
+brew services start mailpit
+createdb clinicapp_dev
+createdb clinicapp_test   # used by backend/tests/integration
+```
+Mailpit's web UI is at `http://localhost:8025`; point `SMTP_HOST=localhost SMTP_PORT=1025` in
+`backend/.env` to route local outbound mail there instead of a real SMTP server.
 
 To reset your local DB and re-apply all migrations from scratch:
 ```bash
