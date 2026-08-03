@@ -13,20 +13,26 @@ type bucket struct {
 	resetAt time.Time
 }
 
-// RateLimiter is a simple fixed-window, per-IP limiter. It's process-local,
-// which is sufficient for a single-instance deployment.
+// RateLimiter is a simple fixed-window limiter, normally keyed per-IP. It's
+// process-local, which is sufficient for a single-instance deployment.
 type RateLimiter struct {
 	limit  int
 	window time.Duration
+	now    func() time.Time
 
 	mu      sync.Mutex
 	buckets map[string]*bucket
 }
 
 func NewRateLimiter(limit int, window time.Duration) *RateLimiter {
+	return newRateLimiter(limit, window, time.Now)
+}
+
+func newRateLimiter(limit int, window time.Duration, now func() time.Time) *RateLimiter {
 	return &RateLimiter{
 		limit:   limit,
 		window:  window,
+		now:     now,
 		buckets: make(map[string]*bucket),
 	}
 }
@@ -45,7 +51,7 @@ func (rl *RateLimiter) allow(key string) bool {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
-	now := time.Now()
+	now := rl.now()
 	b, ok := rl.buckets[key]
 	if !ok || now.After(b.resetAt) {
 		rl.buckets[key] = &bucket{count: 1, resetAt: now.Add(rl.window)}

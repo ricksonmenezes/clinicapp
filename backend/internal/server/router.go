@@ -1,7 +1,7 @@
 // Package server wires the full HTTP surface (middleware chain, auth
 // endpoints) from injected dependencies, so both cmd/server/main.go and the
 // integration test harness build the exact same router — the only
-// difference being a real SMTP mailer vs. a FakeMailer.
+// difference being a real Resend mailer vs. a FakeMailer.
 package server
 
 import (
@@ -69,17 +69,23 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer) http.Han
 	loginLimiter := middleware.NewRateLimiter(5, time.Minute)
 	resendLimiter := middleware.NewRateLimiter(3, time.Hour)
 
+	// Global, account-wide throttle shared by every email-sending endpoint —
+	// see CLAUDE.md's "Email sending guardrails" for why this exists on top
+	// of (not instead of) the per-IP limiters above: Resend's free tier caps
+	// outbound email for the whole account, not per-IP or per-recipient.
+	emailGuardrail := middleware.NewEmailGuardrail(5, 20, 100)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthzHandler)
 
-	mux.Handle("POST /auth/register", registerLimiter.Middleware(http.HandlerFunc(authHandler.Register)))
+	mux.Handle("POST /auth/register", registerLimiter.Middleware(emailGuardrail.Middleware(http.HandlerFunc(authHandler.Register))))
 	mux.HandleFunc("GET /auth/verify-email", authHandler.VerifyEmail)
-	mux.Handle("POST /auth/resend-verification", resendLimiter.Middleware(http.HandlerFunc(authHandler.ResendVerification)))
+	mux.Handle("POST /auth/resend-verification", resendLimiter.Middleware(emailGuardrail.Middleware(http.HandlerFunc(authHandler.ResendVerification))))
 	mux.Handle("POST /auth/login", loginLimiter.Middleware(http.HandlerFunc(authHandler.Login)))
 	mux.HandleFunc("POST /auth/refresh", authHandler.Refresh)
 	mux.HandleFunc("POST /auth/logout", authHandler.Logout)
-	mux.HandleFunc("POST /auth/forgot-password", authHandler.ForgotPassword)
-	mux.HandleFunc("POST /auth/reset-password", authHandler.ResetPassword)
+	mux.Handle("POST /auth/forgot-password", emailGuardrail.Middleware(http.HandlerFunc(authHandler.ForgotPassword)))
+	mux.Handle("POST /auth/reset-password", emailGuardrail.Middleware(http.HandlerFunc(authHandler.ResetPassword)))
 
 	authRequired := middleware.Auth(cfg.JWTSecret)
 	adminOnly := middleware.RequireRole(auth.RoleAdmin)
