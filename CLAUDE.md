@@ -48,6 +48,7 @@ The server starts on `localhost:8080` by default (`PORT` env overrides).
 | `SMS_API_KEY` | SMS provider API key | — | managed secret |
 | `BASE_URL` | Public base URL (used in email links) | `http://localhost:8080` | `https://<domain>` |
 | `INVOICE_STORAGE_DIR` | Directory generated invoice PDFs are written to (relative to `backend/` unless absolute) | `data/invoices` | persistent path outside the deploy dir |
+| `PRESCRIPTION_STORAGE_DIR` | Directory generated Rx PDFs are written to (relative to `backend/` unless absolute) | `data/prescriptions` | persistent path outside the deploy dir |
 | `ADMIN_BOOTSTRAP_EMAIL` | Email for the auto-created first admin account (idempotent, runs on every boot) | optional, local testing only | set once, then unset |
 | `ADMIN_BOOTSTRAP_PASSWORD` | Password for the bootstrap admin account | optional, local testing only | set once, then unset |
 

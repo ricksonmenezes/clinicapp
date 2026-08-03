@@ -30,6 +30,10 @@ type Config struct {
 	// to the backend/ working directory unless given as an absolute path.
 	InvoiceStorageDir string
 
+	// PrescriptionStorageDir is where generated Rx PDFs are written, same
+	// relative-path convention as InvoiceStorageDir.
+	PrescriptionStorageDir string
+
 	AdminBootstrapEmail    string
 	AdminBootstrapPassword string
 }
@@ -50,7 +54,8 @@ func Load() (*Config, error) {
 		SMSAPIKey:    os.Getenv("SMS_API_KEY"),
 		BaseURL:      getEnv("BASE_URL", "http://localhost:8080"),
 
-		InvoiceStorageDir: getEnv("INVOICE_STORAGE_DIR", "data/invoices"),
+		InvoiceStorageDir:      getEnv("INVOICE_STORAGE_DIR", "data/invoices"),
+		PrescriptionStorageDir: getEnv("PRESCRIPTION_STORAGE_DIR", "data/prescriptions"),
 
 		AdminBootstrapEmail:    os.Getenv("ADMIN_BOOTSTRAP_EMAIL"),
 		AdminBootstrapPassword: os.Getenv("ADMIN_BOOTSTRAP_PASSWORD"),
