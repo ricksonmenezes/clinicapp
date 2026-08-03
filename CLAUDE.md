@@ -47,6 +47,7 @@ The server starts on `localhost:8080` by default (`PORT` env overrides).
 | `SMS_PROVIDER` | SMS provider name (TBD) | — | TBD |
 | `SMS_API_KEY` | SMS provider API key | — | managed secret |
 | `BASE_URL` | Public base URL (used in email links) | `http://localhost:8080` | `https://<domain>` |
+| `INVOICE_STORAGE_DIR` | Directory generated invoice PDFs are written to (relative to `backend/` unless absolute) | `data/invoices` | persistent path outside the deploy dir |
 | `ADMIN_BOOTSTRAP_EMAIL` | Email for the auto-created first admin account (idempotent, runs on every boot) | optional, local testing only | set once, then unset |
 | `ADMIN_BOOTSTRAP_PASSWORD` | Password for the bootstrap admin account | optional, local testing only | set once, then unset |
 
@@ -224,6 +225,8 @@ the pre-push hook is a convenience to catch failures before they hit CI.
 - Never make one giant commit at the end of a milestone — commit incrementally as logical units land.
 - Commit immediately after each logical unit of work without asking; summarise what was committed in your response.
 - Never push to main with failing tests.
+- After any milestone is complete and `go test ./...` is green, push to `origin/main`
+  immediately without asking, before starting the next milestone.
 - If `git push` fails on auth, stop and ask — do not attempt to fix credentials silently.
 
 ### Workflow
