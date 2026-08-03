@@ -16,6 +16,7 @@ import (
 	"clinicapp/backend/internal/auth"
 	"clinicapp/backend/internal/config"
 	"clinicapp/backend/internal/consultant"
+	"clinicapp/backend/internal/invoice"
 	"clinicapp/backend/internal/mailer"
 	"clinicapp/backend/internal/middleware"
 	"clinicapp/backend/internal/patient"
@@ -69,8 +70,15 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer) http.Han
 		promo.NewPatientPackageManager(patientPackageRepo, packageRepo, patientRepo, consultantRepo),
 	)
 
+	sessionRepo := session.NewRepository(pool)
 	sessionHandler := session.NewHandler(session.NewService(
-		session.NewRepository(pool), patientRepo, serviceRepo, consultantRepo, attendantRepo, patientPackageRepo,
+		sessionRepo, patientRepo, serviceRepo, consultantRepo, attendantRepo, patientPackageRepo,
+	))
+
+	invoiceHandler := invoice.NewHandler(invoice.NewService(
+		invoice.NewRepository(pool), invoice.NewPlaceholderRepository(pool),
+		sessionRepo, serviceRepo, packageRepo, patientPackageRepo, patientRepo,
+		cfg.InvoiceStorageDir,
 	))
 
 	registerLimiter := middleware.NewRateLimiter(3, time.Minute)
@@ -137,6 +145,16 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer) http.Han
 	mux.Handle("POST /sessions", authRequired(adminOrClinician(http.HandlerFunc(sessionHandler.Create))))
 	mux.Handle("GET /sessions", authRequired(adminOrClinician(http.HandlerFunc(sessionHandler.List))))
 	mux.Handle("GET /sessions/{id}", authRequired(adminOrClinician(http.HandlerFunc(sessionHandler.Get))))
+
+	mux.Handle("GET /consultants/{id}/commission-history", authRequired(adminOnly(http.HandlerFunc(sessionHandler.CommissionHistory))))
+
+	mux.Handle("POST /invoices", authRequired(adminOnly(http.HandlerFunc(invoiceHandler.Create))))
+	mux.Handle("GET /invoices", authRequired(adminOrClinician(http.HandlerFunc(invoiceHandler.List))))
+	mux.Handle("GET /invoices/{id}", authRequired(adminOrClinician(http.HandlerFunc(invoiceHandler.Get))))
+	mux.Handle("GET /invoices/{id}/pdf", authRequired(adminOrClinician(http.HandlerFunc(invoiceHandler.DownloadPDF))))
+
+	mux.Handle("GET /invoice-template-placeholders", authRequired(adminOnly(http.HandlerFunc(invoiceHandler.ListPlaceholders))))
+	mux.Handle("PUT /invoice-template-placeholders/{key}", authRequired(adminOnly(http.HandlerFunc(invoiceHandler.SetPlaceholder))))
 
 	return middleware.ClientType(mux)
 }

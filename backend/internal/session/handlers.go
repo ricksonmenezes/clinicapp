@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"clinicapp/backend/internal/consultant"
 	"clinicapp/backend/internal/renderer"
 )
 
@@ -107,6 +108,46 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// CommissionHistory is registered under /consultants/{id}/commission-history
+// even though it lives in this package — commission snapshots are owned by
+// sessions, but the resource path belongs under the consultant, same as
+// consultant.Handler's own /consultants/{id}/service-commissions.
+func (h *Handler) CommissionHistory(w http.ResponseWriter, r *http.Request) {
+	snapshots, err := h.svc.CommissionHistory(r.Context(), r.PathValue("id"))
+	if err != nil {
+		renderError(w, r, statusForError(err), err)
+		return
+	}
+
+	items := make([]any, 0, len(snapshots))
+	var htmlBuf strings.Builder
+	htmlBuf.WriteString("<ul>")
+	for _, snap := range snapshots {
+		items = append(items, commissionSnapshotJSON(snap))
+		htmlBuf.WriteString(fmt.Sprintf(`<li data-session-id="%s">%.2f%% (%s)</li>`, html.EscapeString(snap.SessionID), snap.CommissionRate, html.EscapeString(snap.ResolutionSource)))
+	}
+	htmlBuf.WriteString("</ul>")
+
+	renderer.Render(w, r, renderer.Response{
+		Status: http.StatusOK,
+		JSON:   map[string]any{"commission_history": items},
+		HTML:   htmlBuf.String(),
+	})
+}
+
+func commissionSnapshotJSON(snap *CommissionSnapshot) map[string]any {
+	return map[string]any{
+		"id":                snap.ID,
+		"session_id":        snap.SessionID,
+		"consultant_id":     snap.ConsultantID,
+		"commission_rate":   snap.CommissionRate,
+		"resolution_source": snap.ResolutionSource,
+		"clinic_amount":     snap.ClinicAmount,
+		"consultant_amount": snap.ConsultantAmount,
+		"created_at":        snap.CreatedAt,
+	}
+}
+
 func sessionJSON(s *Session) map[string]any {
 	out := map[string]any{
 		"id":            s.ID,
@@ -184,7 +225,7 @@ func statusForError(err error) int {
 		errors.Is(err, ErrAttendantNotFound),
 		errors.Is(err, ErrPatientPackageNotFound):
 		return http.StatusBadRequest
-	case errors.Is(err, ErrNotFound):
+	case errors.Is(err, ErrNotFound), errors.Is(err, consultant.ErrNotFound):
 		return http.StatusNotFound
 	default:
 		return http.StatusInternalServerError

@@ -183,6 +183,33 @@ func (r *Repository) List(ctx context.Context, filter ListFilter) ([]*Session, e
 	return sessions, nil
 }
 
+// ListCommissionHistory returns every commission snapshot earned by a
+// consultant, most recent first — the rate and resolution_source per
+// session that CLAUDE.md's commission-history requirement calls for.
+func (r *Repository) ListCommissionHistory(ctx context.Context, consultantID string) ([]*CommissionSnapshot, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, session_id, consultant_id, commission_rate, resolution_source, clinic_amount, consultant_amount, created_at
+		FROM session_commission_snapshot WHERE consultant_id = $1 ORDER BY created_at DESC
+	`, consultantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var snapshots []*CommissionSnapshot
+	for rows.Next() {
+		snap := &CommissionSnapshot{}
+		if err := rows.Scan(&snap.ID, &snap.SessionID, &snap.ConsultantID, &snap.CommissionRate, &snap.ResolutionSource, &snap.ClinicAmount, &snap.ConsultantAmount, &snap.CreatedAt); err != nil {
+			return nil, err
+		}
+		snapshots = append(snapshots, snap)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return snapshots, nil
+}
+
 // hydrate fills in a session's attendant roster and commission snapshot.
 func (r *Repository) hydrate(ctx context.Context, s *Session) error {
 	rows, err := r.pool.Query(ctx, `SELECT attendant_id FROM session_attendants WHERE session_id = $1`, s.ID)

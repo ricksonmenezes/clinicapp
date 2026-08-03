@@ -26,6 +26,10 @@ type Config struct {
 
 	BaseURL string
 
+	// InvoiceStorageDir is where generated invoice PDFs are written, relative
+	// to the backend/ working directory unless given as an absolute path.
+	InvoiceStorageDir string
+
 	AdminBootstrapEmail    string
 	AdminBootstrapPassword string
 }
@@ -45,6 +49,8 @@ func Load() (*Config, error) {
 		SMSProvider:  os.Getenv("SMS_PROVIDER"),
 		SMSAPIKey:    os.Getenv("SMS_API_KEY"),
 		BaseURL:      getEnv("BASE_URL", "http://localhost:8080"),
+
+		InvoiceStorageDir: getEnv("INVOICE_STORAGE_DIR", "data/invoices"),
 
 		AdminBootstrapEmail:    os.Getenv("ADMIN_BOOTSTRAP_EMAIL"),
 		AdminBootstrapPassword: os.Getenv("ADMIN_BOOTSTRAP_PASSWORD"),

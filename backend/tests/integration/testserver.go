@@ -35,6 +35,7 @@ func NewTestServer(t *testing.T) (*httptest.Server, *FakeMailer) {
 		RefreshTokenExpiryDays: 30,
 		BaseURL:                "http://localhost:8080",
 		MailFrom:               "onboarding@resend.dev",
+		InvoiceStorageDir:      t.TempDir(),
 		AdminBootstrapEmail:    TestAdminEmail,
 		AdminBootstrapPassword: TestAdminPassword,
 	}

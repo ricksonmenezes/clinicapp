@@ -165,3 +165,17 @@ func (s *Service) Get(ctx context.Context, id string) (*Session, error) {
 func (s *Service) List(ctx context.Context, filter ListFilter) ([]*Session, error) {
 	return s.repo.List(ctx, filter)
 }
+
+// CommissionHistory returns a consultant's commission snapshots, most
+// recent first, after confirming the consultant exists. Unlike
+// ErrConsultantNotFound (used when a body-supplied consultant_id fails
+// validation, i.e. 400), a missing consultant here is a path-param lookup —
+// consultant.ErrNotFound propagates as-is so statusForError can 404 it, the
+// same as consultant.Service.ListServiceCommissions does for its own
+// /consultants/{id}/... sub-resource.
+func (s *Service) CommissionHistory(ctx context.Context, consultantID string) ([]*CommissionSnapshot, error) {
+	if _, err := s.consultantRepo.GetByID(ctx, consultantID); err != nil {
+		return nil, err
+	}
+	return s.repo.ListCommissionHistory(ctx, consultantID)
+}
