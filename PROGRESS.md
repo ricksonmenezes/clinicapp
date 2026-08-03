@@ -31,7 +31,7 @@ instructions.
 - [x] **M5** — Invoicing & PDF: invoice generation per session and per package, server-side PDF
       output, admin placeholder editor (clinic name, address, footer etc.), commission history
       view per consultant showing rate + resolution source per session. Tests green.
-- [ ] **M6** — Prescriptions (Rx): Rx authoring UI for consultants, printable PDF output.
+- [x] **M6** — Prescriptions (Rx): Rx authoring UI for consultants, printable PDF output.
       Tests green.
 - [ ] **M7** — Customer-facing portal: patient self-register/login (same auth backend), service
       browse, calendar slot availability view, booking flow, email confirmation on booking.
@@ -62,6 +62,32 @@ instructions.
 
 ## Decision log
 
+- **2026-08-03** (M6): Prescriptions (Rx) complete. New `internal/prescription` package
+  (`Prescription` model, `Repository`, `Service`, `Handler`, `pdf.go`) — same layering as
+  `internal/invoice`. Migration `019` adds `prescriptions` (`session_id` nullable FK, `consultant_id`
+  and `patient_id` required). **Authorship decision (not fully specified in PLAN.md)**: `POST
+  /prescriptions` never accepts a caller-supplied `consultant_id` — it's always resolved from the
+  authenticated caller's own consultant profile via a new `consultant.Repository.GetByUserID`, so a
+  logged-in clinician can only issue an Rx under their own name, never impersonate another
+  clinician. A clinician user with no consultant profile row gets `ErrConsultantProfileMissing`
+  (400). If `session_id` is given, it must belong to the same `patient_id` (`ErrSessionPatientMismatch`,
+  400) — same cross-ownership validation style as M4's patient_package checks. Routes
+  (`POST /prescriptions`, `GET /prescriptions`, `GET /prescriptions/{id}`,
+  `GET /prescriptions/{id}/pdf`) are **clinician-only end to end**, not admin+clinician like
+  invoices — per PLAN.md's API table, Rx authorship and content are a clinician's professional
+  responsibility, not a front-office/billing concern, so admins get 403. PDF letterhead
+  (clinic name/address/footer) reuses the existing `invoice_template_placeholders` table via
+  `internal/invoice`'s already-exported `PlaceholderRepository`/`Placeholder*` constants rather than
+  adding a second admin-editable branding config — it's the same clinic identity, not
+  invoice-specific data, and CLAUDE.md's "never hardcode clinic name/address/footer" isn't scoped to
+  just invoices. New `PRESCRIPTION_STORAGE_DIR` env var (default `data/prescriptions`), same
+  relative-path convention as `INVOICE_STORAGE_DIR`. `GET /prescriptions/{id}/pdf` bypasses the
+  web/mobile `renderer` dispatch like the invoice PDF route, for the same reason (binary download).
+  5 new integration tests in `prescription_test.go` cover: authoring as the caller's own consultant
+  profile (verified by asserting the returned `consultant_id`), rejecting a clinician with no
+  consultant profile, rejecting an admin caller (403), session/patient mismatch validation (both the
+  rejection and the matching-session success case), and `patient_id`/`consultant_id` list filtering.
+  `go test ./...` green.
 - **2026-08-03** (M5): Invoicing & PDF complete. New `internal/invoice` package
   (`Invoice`/`TemplatePlaceholder` models, `Repository` + `PlaceholderRepository`, `Service`,
   `Handler`). Migrations `017`–`018` add `invoices` (with a DB `CHECK` enforcing exactly one of
