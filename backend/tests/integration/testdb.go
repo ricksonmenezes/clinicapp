@@ -22,6 +22,7 @@ var appTables = []string{
 	"password_reset_tokens",
 	"refresh_tokens",
 	"email_verification_tokens",
+	"prescriptions",
 	"invoices",
 	"invoice_template_placeholders",
 	"session_commission_snapshot",

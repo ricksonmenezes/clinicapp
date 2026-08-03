@@ -36,6 +36,7 @@ func NewTestServer(t *testing.T) (*httptest.Server, *FakeMailer) {
 		BaseURL:                "http://localhost:8080",
 		MailFrom:               "onboarding@resend.dev",
 		InvoiceStorageDir:      t.TempDir(),
+		PrescriptionStorageDir: t.TempDir(),
 		AdminBootstrapEmail:    TestAdminEmail,
 		AdminBootstrapPassword: TestAdminPassword,
 	}
