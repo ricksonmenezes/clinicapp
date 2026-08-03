@@ -21,7 +21,7 @@ instructions.
       global commission config, attendant profiles. Role-gated (`admin`/`clinician`) via new
       `middleware.RequireRole`. Per-service commission override deferred to M3 (needs the
       `services` table). `go test ./...` green.
-- [ ] **M3** — Services & packages: service CRUD (price, requires_consultant flag), package/promo
+- [x] **M3** — Services & packages: service CRUD (price, requires_consultant flag), package/promo
       definition (N sessions, package price, principal consultant), patient package subscription.
       Backoffice pages. Tests green.
 - [ ] **M4** — Session management: session recording (patient, service, consultant nullable,
@@ -50,10 +50,6 @@ instructions.
   netcup server. Still pending: adding the `reverse_proxy localhost:8080` block for this subdomain
   to Caddy on the netcup server itself (see `CLAUDE.md` §7). Deferred to M9 (production deploy);
   no code-side work needed until then.
-
-
-- Per-service commission override (`consultant_service_commission` table): needs `services`
-  (M3) for its `service_id` FK. Land it alongside M3's service CRUD migrations.
 - SMS provider: user to confirm which provider (Twilio, Vonage, local Philippine SMS gateway, etc.)
   before M8 can start. Interface is abstracted in `internal/sms/` — implementation slots in when
   confirmed.
@@ -66,6 +62,28 @@ instructions.
 
 ## Decision log
 
+- **2026-08-03** (M3): Services & packages complete. New `internal/service` package (domain
+  type `Service`; business-logic layer named `Manager` instead of the usual `Service`/`NewService`
+  convention, since that name is already taken by the package's own entity type) with full CRUD —
+  `GET /services` is open to any authenticated role (patients will browse in the future customer
+  portal per PLAN.md Module 8), writes are admin-only. Migration `010` adds `services`.
+  Per-service commission override (deferred from M2, since it needs `services`) lands as an
+  extension of `internal/consultant`: `POST/GET /consultants/{id}/service-commissions`, upserting
+  on the `UNIQUE(consultant_id, service_id)` constraint rather than exposing separate create/update
+  endpoints, since the override is a single value being set, not a record with its own lifecycle.
+  Migration `011` adds `consultant_service_commission`. New `internal/promo` package (named for
+  PLAN.md's "Package / Promo" entity, since `package` is a reserved Go keyword and can't be a
+  package/directory name) holds both `Package` (bundle definition, admin-only CRUD via
+  `/packages`) and `PatientPackage` (a patient's subscription via `POST/GET /patient-packages`,
+  admin write / admin+clinician read like `/patients`). Subscribing seeds `sessions_remaining`
+  from the package's `session_count` at purchase time — later edits to the package definition
+  don't retroactively change existing subscriptions. `principal_consultant` on a subscription is
+  validated if given (must be an existing consultant) but is informational only, per PLAN.md;
+  actual commission resolution follows the performing consultant per session, landing in M4.
+  Migrations `012`/`013` add `packages`/`patient_packages`. All new tables registered in the
+  integration test harness's truncate list. 9 new integration tests across
+  `service_test.go`, `consultant_service_commission_test.go`, `promo_test.go`. `go test ./...`
+  green.
 - **2026-08-03** (M2): Patient & consultant management complete. New `internal/patient`,
   `internal/consultant`, `internal/attendant` packages, each following M1's
   models/repository/service/handlers layering exactly (raw SQL via pgx/v5, sentinel errors,
