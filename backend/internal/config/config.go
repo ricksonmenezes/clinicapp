@@ -23,6 +23,7 @@ type Config struct {
 
 	SMSProvider string
 	SMSAPIKey   string
+	SMSSenderID string
 
 	BaseURL string
 
@@ -52,6 +53,7 @@ func Load() (*Config, error) {
 		MailFrom:     getEnv("MAIL_FROM", "onboarding@resend.dev"),
 		SMSProvider:  os.Getenv("SMS_PROVIDER"),
 		SMSAPIKey:    os.Getenv("SMS_API_KEY"),
+		SMSSenderID:  getEnv("SMS_SENDER_ID", "PhilSMS"),
 		BaseURL:      getEnv("BASE_URL", "http://localhost:8080"),
 
 		InvoiceStorageDir:      getEnv("INVOICE_STORAGE_DIR", "data/invoices"),

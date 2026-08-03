@@ -1,7 +1,7 @@
 // Package server wires the full HTTP surface (middleware chain, auth
 // endpoints) from injected dependencies, so both cmd/server/main.go and the
 // integration test harness build the exact same router — the only
-// difference being a real Resend mailer vs. a FakeMailer.
+// difference being real Resend/PhilSMS senders vs. fakes.
 package server
 
 import (
@@ -25,6 +25,7 @@ import (
 	"clinicapp/backend/internal/promo"
 	"clinicapp/backend/internal/service"
 	"clinicapp/backend/internal/session"
+	"clinicapp/backend/internal/sms"
 )
 
 // Bootstrap creates the configured admin account if it doesn't exist yet.
@@ -41,7 +42,7 @@ func Bootstrap(ctx context.Context, pool *pgxpool.Pool, cfg *config.Config) erro
 	return svc.EnsureBootstrapAdmin(ctx, cfg.AdminBootstrapEmail, cfg.AdminBootstrapPassword)
 }
 
-func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer) http.Handler {
+func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer, s sms.Sender) http.Handler {
 	authRepo := auth.NewRepository(pool)
 	authSvc := auth.NewService(authRepo, m, auth.ServiceConfig{
 		JWTSecret:          cfg.JWTSecret,
@@ -91,7 +92,7 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer) http.Han
 	))
 
 	bookingHandler := booking.NewHandler(booking.NewService(
-		sessionSvc, sessionRepo, serviceRepo, consultantRepo, patientRepo, authRepo, m,
+		sessionSvc, sessionRepo, serviceRepo, consultantRepo, patientRepo, authRepo, m, s,
 	))
 
 	registerLimiter := middleware.NewRateLimiter(3, time.Minute)

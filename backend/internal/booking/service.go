@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"clinicapp/backend/internal/auth"
@@ -12,6 +13,7 @@ import (
 	"clinicapp/backend/internal/patient"
 	"clinicapp/backend/internal/service"
 	"clinicapp/backend/internal/session"
+	"clinicapp/backend/internal/sms"
 )
 
 // Fixed clinic operating calendar (UTC). Not admin-configurable — PLAN.md's
@@ -34,6 +36,7 @@ type Service struct {
 	patientRepo    *patient.Repository
 	authRepo       *auth.Repository
 	mailer         mailer.Mailer
+	smsSender      sms.Sender
 }
 
 func NewService(
@@ -44,6 +47,7 @@ func NewService(
 	patientRepo *patient.Repository,
 	authRepo *auth.Repository,
 	m mailer.Mailer,
+	s sms.Sender,
 ) *Service {
 	return &Service{
 		sessionSvc:     sessionSvc,
@@ -53,6 +57,7 @@ func NewService(
 		patientRepo:    patientRepo,
 		authRepo:       authRepo,
 		mailer:         m,
+		smsSender:      s,
 	}
 }
 
@@ -189,6 +194,16 @@ func (s *Service) Book(ctx context.Context, callerUserID string, in CreateBookin
 		return nil, err
 	}
 
+	// SMS is a best-effort supplementary notification, unlike the email
+	// above: patients.phone is optional free text with no format
+	// validation at write time (unlike email, which is the verified
+	// account identifier), so a missing or malformed number — or a
+	// PhilSMS API failure — must not fail an otherwise-successful
+	// booking. Logged, not surfaced to the caller.
+	if err := s.sendSMSConfirmation(ctx, pat.Phone, svc, sess); err != nil {
+		log.Printf("booking: sms confirmation failed: %v", err)
+	}
+
 	return sess, nil
 }
 
@@ -200,6 +215,23 @@ func (s *Service) sendConfirmation(ctx context.Context, callerUserID string, svc
 	return s.mailer.Send(ctx, mailer.Message{
 		To:      user.Email,
 		Subject: "Your appointment is confirmed",
+		Body: fmt.Sprintf(
+			"Your booking for %s on %s is confirmed.",
+			svc.Name, sess.ScheduledAt.Format(time.RFC1123),
+		),
+	})
+}
+
+func (s *Service) sendSMSConfirmation(ctx context.Context, phone *string, svc *service.Service, sess *session.Session) error {
+	if phone == nil || *phone == "" {
+		return nil
+	}
+	to, err := sms.NormalizePHPhone(*phone)
+	if err != nil {
+		return err
+	}
+	return s.smsSender.Send(ctx, sms.Message{
+		To: to,
 		Body: fmt.Sprintf(
 			"Your booking for %s on %s is confirmed.",
 			svc.Name, sess.ScheduledAt.Format(time.RFC1123),

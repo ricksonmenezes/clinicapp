@@ -8,6 +8,7 @@ import (
 	"clinicapp/backend/internal/config"
 	"clinicapp/backend/internal/mailer"
 	"clinicapp/backend/internal/server"
+	"clinicapp/backend/internal/sms"
 	"clinicapp/backend/internal/store"
 )
 
@@ -39,7 +40,8 @@ func main() {
 	}
 
 	m := mailer.NewResendMailer(cfg.ResendAPIKey, cfg.MailFrom)
-	router := server.NewRouter(pool, cfg, m)
+	s := sms.NewPhilSMSSender(cfg.SMSAPIKey, cfg.SMSSenderID)
+	router := server.NewRouter(pool, cfg, m, s)
 
 	log.Printf("clinicapp server listening on :%s", cfg.Port)
 	if err := http.ListenAndServe(":"+cfg.Port, router); err != nil {
