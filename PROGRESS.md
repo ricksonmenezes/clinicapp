@@ -36,8 +36,8 @@ instructions.
 - [x] **M7** — Customer-facing portal: patient self-register/login (same auth backend), service
       browse, calendar slot availability view, booking flow, email confirmation on booking.
       Tests green.
-- [ ] **M8** — SMS notifications: integrate SMS provider (TBD — awaiting user confirmation of
-      provider), send SMS on booking confirmation.
+- [ ] **M8** — SMS notifications: integrate PhilSMS (dashboard.philsms.com), send SMS on booking
+      confirmation. Provider confirmed, API key in `backend/.env` — ready to start.
 - [ ] **M9** — Production deploy: server provisioned, systemd service installed, Caddy configured,
       Cloudflare orange proxy active (TLS), end-to-end booking flow verified on prod.
       `curl https://<domain>/healthz` → ok.
@@ -50,9 +50,6 @@ instructions.
   netcup server. Still pending: adding the `reverse_proxy localhost:8080` block for this subdomain
   to Caddy on the netcup server itself (see `CLAUDE.md` §7). Deferred to M9 (production deploy);
   no code-side work needed until then.
-- SMS provider: user to confirm which provider (Twilio, Vonage, local Philippine SMS gateway, etc.)
-  before M8 can start. Interface is abstracted in `internal/sms/` — implementation slots in when
-  confirmed.
 - Phase 2: Google / Apple OAuth (user_providers table scaffolded in M1, unused until Phase 2).
 - Phase 2: mobile app (React Native or Flutter) consuming the same Go API.
 - Phase 2: reporting / analytics dashboard.
@@ -62,6 +59,16 @@ instructions.
 
 ## Decision log
 
+- **2026-08-03** (M8 unblocked): SMS provider confirmed as **PhilSMS**
+  (dashboard.philsms.com). User added `SMS_PROVIDER=philsms` and `SMS_API_KEY=<redacted>` to
+  `backend/.env`. API base URL supplied: `https://dashboard.philsms.com/api/v3/` (PhilSMS's
+  dashboard labels this the "OAuth 2.0 API Endpoint"). Developer docs:
+  `https://dashboard.philsms.com/developers/docs`. `internal/sms` is still an empty stub
+  (`doc.go` only) — no implementation yet. Exact request/auth shape (bearer token vs. an actual
+  OAuth2 client-credentials exchange) needs confirming against PhilSMS's API docs when M8
+  implementation starts, same as M5 deferred the PDF library choice and M1 deferred Resend's
+  request format to when each milestone actually began. Docs-only change — `PLAN.md`,
+  `PROGRESS.md`, `CLAUDE.md` updated to reflect the confirmed provider; no code changed.
 - **2026-08-03** (M7): Customer-facing portal complete. Patient self-registration/login reuses
   `POST /auth/register` + `/auth/login` as-is (both were already patient-role/client-agnostic).
   **Self-service profile (not specified in PLAN.md)**: registering only creates the `users` row —

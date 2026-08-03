@@ -79,14 +79,17 @@ A full-stack clinic scheduling and management platform with:
 - Calendar view: available vs. booked slots
 - Booking flow: choose service → choose date/time → confirm
 - Email notification on booking confirmation
-- SMS notification on booking confirmation (provider TBD — user to supply)
+- SMS notification on booking confirmation via **PhilSMS** (dashboard.philsms.com) — provider
+  confirmed; API key in `backend/.env` (`SMS_PROVIDER=philsms`, `SMS_API_KEY`). API base:
+  `https://dashboard.philsms.com/api/v3/`. Developer docs:
+  `https://dashboard.philsms.com/developers/docs`. Exact request/auth format to confirm against
+  those docs when `internal/sms` is implemented in M8.
 
 ---
 
 ## Phase 2 scope (deferred)
 
 - Third-party OAuth login (Google, Apple) — `user_providers` table already scaffolded in Phase 1
-- SMS provider integration (details pending from user)
 - Reporting / analytics dashboard
 - Mobile app (React Native or Flutter) consuming the same Go API
 - Multi-clinic / multi-branch support
@@ -141,7 +144,7 @@ clinicapp/
 │       ├── invoice/
 │       ├── prescription/
 │       ├── mailer/        ← Resend HTTP API (interface; swap provider without rewrite)
-│       ├── sms/           ← SMS abstraction (interface; provider TBD)
+│       ├── sms/           ← SMS abstraction (interface; provider: PhilSMS)
 │       └── store/         ← DB connection, migrations
 │
 ├── web/
@@ -478,7 +481,7 @@ the endpoint directly (curl or browser) instead of clicking a link in an inbox.
 - **M5** — Invoicing & PDF: invoice generation, PDF output (server-side), admin placeholder editor. Commission history view per consultant. Tests green.
 - **M6** — Prescriptions (Rx): Rx authoring UI for consultants, PDF output. Tests green.
 - **M7** — Customer-facing portal: patient self-register/login (same auth), service browse, calendar slot availability, booking flow, email confirmation. Tests green.
-- **M8** — SMS notifications: integrate SMS provider (TBD), send on booking confirmation.
+- **M8** — SMS notifications: integrate PhilSMS, send on booking confirmation.
 - **M9** — Deploy to production server: systemd service, Caddy reverse proxy, HTTPS via Cloudflare. End-to-end verified.
 
 ---
@@ -493,5 +496,5 @@ the endpoint directly (curl or browser) instead of clicking a link in an inbox.
 - **M5**: invoice generated and PDF downloadable; admin can edit placeholder values and re-render invoice. Commission history shows correct rate per session. Tests green.
 - **M6**: clinician can author and download an Rx PDF for a patient. Tests green.
 - **M7**: patient can self-register, log in, browse services, view calendar, book a slot, receive confirmation email. Tests green.
-- **M8**: booking confirmation triggers SMS to patient. Provider confirmed by user.
+- **M8**: booking confirmation triggers SMS to patient via PhilSMS. Tests green.
 - **M9**: `curl https://<domain>/healthz` returns ok; end-to-end booking flow confirmed on prod.

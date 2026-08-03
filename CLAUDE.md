@@ -44,8 +44,8 @@ The server starts on `localhost:8080` by default (`PORT` env overrides).
 | `REFRESH_TOKEN_EXPIRY_DAYS` | Refresh token TTL | `30` | `30` |
 | `RESEND_API_KEY` | Resend API key | sandbox key from resend.com | managed secret |
 | `MAIL_FROM` | From address on outbound emails | `onboarding@resend.dev` (Resend sandbox address) | verified domain address, e.g. `noreply@yourclinic.com` |
-| `SMS_PROVIDER` | SMS provider name (TBD) | — | TBD |
-| `SMS_API_KEY` | SMS provider API key | — | managed secret |
+| `SMS_PROVIDER` | SMS provider name | `philsms` | `philsms` |
+| `SMS_API_KEY` | PhilSMS API key | key from dashboard.philsms.com | managed secret |
 | `BASE_URL` | Public base URL (used in email links) | `http://localhost:8080` | `https://<domain>` |
 | `INVOICE_STORAGE_DIR` | Directory generated invoice PDFs are written to (relative to `backend/` unless absolute) | `data/invoices` | persistent path outside the deploy dir |
 | `PRESCRIPTION_STORAGE_DIR` | Directory generated Rx PDFs are written to (relative to `backend/` unless absolute) | `data/prescriptions` | persistent path outside the deploy dir |
@@ -298,6 +298,11 @@ This is additive to, not a replacement for, the per-email-address resend-verific
   verify-email flow locally, copy the token directly from your DB or server logs and call
   `GET /auth/verify-email?token=<that-token>` manually (curl or browser). Do not set up
   Mailpit — it is no longer in the stack.
+- **SMS provider (M8)**: confirmed as PhilSMS. API base `https://dashboard.philsms.com/api/v3/`;
+  developer docs at `https://dashboard.philsms.com/developers/docs`. `SMS_PROVIDER=philsms` and
+  `SMS_API_KEY` are already set in `backend/.env`, but `internal/sms` has no implementation yet
+  (stub `doc.go` only) — confirm the exact request/auth format against those docs before wiring
+  up `internal/sms` when M8 starts.
 
 ---
 
