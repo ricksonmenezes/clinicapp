@@ -34,6 +34,10 @@ func main() {
 		log.Fatalf("run migrations: %v", err)
 	}
 
+	if err := server.Bootstrap(ctx, pool, cfg); err != nil {
+		log.Fatalf("bootstrap admin: %v", err)
+	}
+
 	m := mailer.NewSMTPMailer(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUser, cfg.SMTPPass, cfg.SMTPFrom)
 	router := server.NewRouter(pool, cfg, m)
 

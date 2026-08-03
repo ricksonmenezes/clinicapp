@@ -5,31 +5,52 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"clinicapp/backend/internal/attendant"
 	"clinicapp/backend/internal/auth"
 	"clinicapp/backend/internal/config"
+	"clinicapp/backend/internal/consultant"
 	"clinicapp/backend/internal/mailer"
 	"clinicapp/backend/internal/middleware"
-	"clinicapp/backend/internal/renderer"
+	"clinicapp/backend/internal/patient"
 )
 
-func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer) http.Handler {
+// Bootstrap creates the configured admin account if it doesn't exist yet.
+// It's a no-op when ADMIN_BOOTSTRAP_EMAIL/PASSWORD aren't set, and safe to
+// call on every startup — it only ever creates the account once. This is
+// the only way to obtain the first admin, since RegisterStaff itself
+// requires an authenticated admin.
+func Bootstrap(ctx context.Context, pool *pgxpool.Pool, cfg *config.Config) error {
+	if cfg.AdminBootstrapEmail == "" || cfg.AdminBootstrapPassword == "" {
+		return nil
+	}
 	repo := auth.NewRepository(pool)
-	svc := auth.NewService(repo, m, auth.ServiceConfig{
+	svc := auth.NewService(repo, nil, auth.ServiceConfig{})
+	return svc.EnsureBootstrapAdmin(ctx, cfg.AdminBootstrapEmail, cfg.AdminBootstrapPassword)
+}
+
+func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer) http.Handler {
+	authRepo := auth.NewRepository(pool)
+	authSvc := auth.NewService(authRepo, m, auth.ServiceConfig{
 		JWTSecret:          cfg.JWTSecret,
 		JWTExpiry:          time.Duration(cfg.JWTExpiryMinutes) * time.Minute,
 		RefreshTokenExpiry: time.Duration(cfg.RefreshTokenExpiryDays) * 24 * time.Hour,
 		BaseURL:            cfg.BaseURL,
 	})
-	authHandler := auth.NewHandler(svc, auth.HandlerConfig{
+	authHandler := auth.NewHandler(authSvc, auth.HandlerConfig{
 		SecureCookies:      cfg.AppEnv == "prod",
 		RefreshTokenExpiry: time.Duration(cfg.RefreshTokenExpiryDays) * 24 * time.Hour,
 	})
+
+	patientHandler := patient.NewHandler(patient.NewService(patient.NewRepository(pool), authRepo))
+	consultantHandler := consultant.NewHandler(consultant.NewService(consultant.NewRepository(pool), authRepo))
+	attendantHandler := attendant.NewHandler(attendant.NewService(attendant.NewRepository(pool), authRepo))
 
 	registerLimiter := middleware.NewRateLimiter(3, time.Minute)
 	loginLimiter := middleware.NewRateLimiter(5, time.Minute)
@@ -48,20 +69,27 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer) http.Han
 	mux.HandleFunc("POST /auth/reset-password", authHandler.ResetPassword)
 
 	authRequired := middleware.Auth(cfg.JWTSecret)
-	mux.Handle("GET /patients", authRequired(http.HandlerFunc(placeholderPatientsHandler)))
+	adminOnly := middleware.RequireRole(auth.RoleAdmin)
+	adminOrClinician := middleware.RequireRole(auth.RoleAdmin, auth.RoleClinician)
+
+	mux.Handle("POST /auth/register-staff", authRequired(adminOnly(http.HandlerFunc(authHandler.RegisterStaff))))
+
+	mux.Handle("POST /patients", authRequired(adminOnly(http.HandlerFunc(patientHandler.Create))))
+	mux.Handle("GET /patients", authRequired(adminOrClinician(http.HandlerFunc(patientHandler.List))))
+	mux.Handle("GET /patients/{id}", authRequired(adminOrClinician(http.HandlerFunc(patientHandler.Get))))
+	mux.Handle("PATCH /patients/{id}", authRequired(adminOnly(http.HandlerFunc(patientHandler.Update))))
+
+	mux.Handle("POST /consultants", authRequired(adminOnly(http.HandlerFunc(consultantHandler.Create))))
+	mux.Handle("GET /consultants", authRequired(adminOnly(http.HandlerFunc(consultantHandler.List))))
+	mux.Handle("GET /consultants/{id}", authRequired(adminOnly(http.HandlerFunc(consultantHandler.Get))))
+	mux.Handle("PATCH /consultants/{id}", authRequired(adminOnly(http.HandlerFunc(consultantHandler.Update))))
+
+	mux.Handle("POST /attendants", authRequired(adminOnly(http.HandlerFunc(attendantHandler.Create))))
+	mux.Handle("GET /attendants", authRequired(adminOnly(http.HandlerFunc(attendantHandler.List))))
+	mux.Handle("GET /attendants/{id}", authRequired(adminOnly(http.HandlerFunc(attendantHandler.Get))))
+	mux.Handle("PATCH /attendants/{id}", authRequired(adminOnly(http.HandlerFunc(attendantHandler.Update))))
 
 	return middleware.ClientType(mux)
-}
-
-// placeholderPatientsHandler exists only to prove the auth middleware chain
-// works end-to-end (see PLAN.md's M1 canonical test). Real patient CRUD
-// lands in M2.
-func placeholderPatientsHandler(w http.ResponseWriter, r *http.Request) {
-	renderer.Render(w, r, renderer.Response{
-		Status: http.StatusOK,
-		JSON:   map[string]any{"patients": []any{}},
-		HTML:   "<ul></ul>",
-	})
 }
 
 // healthzHandler always returns JSON, regardless of X-Client-Type — it's a
