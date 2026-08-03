@@ -46,6 +46,7 @@ The server starts on `localhost:8080` by default (`PORT` env overrides).
 | `MAIL_FROM` | From address on outbound emails | `onboarding@resend.dev` (Resend sandbox address) | verified domain address, e.g. `noreply@yourclinic.com` |
 | `SMS_PROVIDER` | SMS provider name | `philsms` | `philsms` |
 | `SMS_API_KEY` | PhilSMS API key | key from dashboard.philsms.com | managed secret |
+| `SMS_SENDER_ID` | PhilSMS sender name on outbound SMS | `PhilSMS` (platform shared default) | `PhilSMS`, or the clinic's own registered sender ID once obtained |
 | `BASE_URL` | Public base URL (used in email links) | `http://localhost:8080` | `https://<domain>` |
 | `INVOICE_STORAGE_DIR` | Directory generated invoice PDFs are written to (relative to `backend/` unless absolute) | `data/invoices` | persistent path outside the deploy dir |
 | `PRESCRIPTION_STORAGE_DIR` | Directory generated Rx PDFs are written to (relative to `backend/` unless absolute) | `data/prescriptions` | persistent path outside the deploy dir |
@@ -85,7 +86,7 @@ clinicapp/
 │       ├── prescription/
 │       ├── booking/       ← customer-portal calendar availability + self-booking
 │       ├── mailer/        ← Resend interface + implementation (api.resend.com/emails)
-│       ├── sms/           ← SMS interface (provider plugged in when confirmed)
+│       ├── sms/           ← SMS abstraction (PhilSMS implementation)
 │       └── store/         ← DB pool, migration runner
 │
 ├── web/
@@ -298,11 +299,16 @@ This is additive to, not a replacement for, the per-email-address resend-verific
   verify-email flow locally, copy the token directly from your DB or server logs and call
   `GET /auth/verify-email?token=<that-token>` manually (curl or browser). Do not set up
   Mailpit — it is no longer in the stack.
-- **SMS provider (M8)**: confirmed as PhilSMS. API base `https://dashboard.philsms.com/api/v3/`;
-  developer docs at `https://dashboard.philsms.com/developers/docs`. `SMS_PROVIDER=philsms` and
-  `SMS_API_KEY` are already set in `backend/.env`, but `internal/sms` has no implementation yet
-  (stub `doc.go` only) — confirm the exact request/auth format against those docs before wiring
-  up `internal/sms` when M8 starts.
+- **SMS provider (M8, implemented)**: PhilSMS. `internal/sms.PhilSMSSender` sends via
+  `POST https://app.philsms.com/api/v3/sms/send` (the real endpoint per PhilSMS's developer
+  docs — note this is `app.philsms.com`, not the `dashboard.philsms.com` host used for logging
+  into the PhilSMS dashboard itself), `Authorization: Bearer <SMS_API_KEY>`, body
+  `{recipient, sender_id, type: "plain", message}`. `patients.phone` is free text with no format
+  validation at write time, so `sms.NormalizePHPhone` converts the common local forms
+  (`+639...`, `639...`, `09...`, bare `9...`) to the `63XXXXXXXXXX` shape the API expects before
+  sending. SMS confirmation on booking is best-effort — unlike the email confirmation, a missing
+  phone number or a PhilSMS send failure is logged and does not fail the booking, since phone
+  (unlike email) is optional and unverified.
 
 ---
 

@@ -79,11 +79,11 @@ A full-stack clinic scheduling and management platform with:
 - Calendar view: available vs. booked slots
 - Booking flow: choose service → choose date/time → confirm
 - Email notification on booking confirmation
-- SMS notification on booking confirmation via **PhilSMS** (dashboard.philsms.com) — provider
-  confirmed; API key in `backend/.env` (`SMS_PROVIDER=philsms`, `SMS_API_KEY`). API base:
-  `https://dashboard.philsms.com/api/v3/`. Developer docs:
-  `https://dashboard.philsms.com/developers/docs`. Exact request/auth format to confirm against
-  those docs when `internal/sms` is implemented in M8.
+- SMS notification on booking confirmation via **PhilSMS** — implemented in `internal/sms`
+  (`PhilSMSSender`). Send endpoint: `POST https://app.philsms.com/api/v3/sms/send`
+  (`Authorization: Bearer SMS_API_KEY`); developer docs:
+  `https://app.philsms.com/developers/documentation`. Best-effort: unlike the email
+  confirmation, a missing phone number or a PhilSMS send failure does not fail the booking.
 
 ---
 
@@ -144,7 +144,7 @@ clinicapp/
 │       ├── invoice/
 │       ├── prescription/
 │       ├── mailer/        ← Resend HTTP API (interface; swap provider without rewrite)
-│       ├── sms/           ← SMS abstraction (interface; provider: PhilSMS)
+│       ├── sms/           ← SMS abstraction (PhilSMS implementation)
 │       └── store/         ← DB connection, migrations
 │
 ├── web/

@@ -36,8 +36,8 @@ instructions.
 - [x] **M7** — Customer-facing portal: patient self-register/login (same auth backend), service
       browse, calendar slot availability view, booking flow, email confirmation on booking.
       Tests green.
-- [ ] **M8** — SMS notifications: integrate PhilSMS (dashboard.philsms.com), send SMS on booking
-      confirmation. Provider confirmed, API key in `backend/.env` — ready to start.
+- [x] **M8** — SMS notifications: integrate PhilSMS, send SMS on booking confirmation.
+      Tests green.
 - [ ] **M9** — Production deploy: server provisioned, systemd service installed, Caddy configured,
       Cloudflare orange proxy active (TLS), end-to-end booking flow verified on prod.
       `curl https://<domain>/healthz` → ok.
@@ -59,6 +59,35 @@ instructions.
 
 ## Decision log
 
+- **2026-08-03** (M8): SMS notifications complete. New `internal/sms` package (`Message`,
+  `Sender` interface, `PhilSMSSender`) — same shape as `internal/mailer`'s `Message`/`Mailer`,
+  so `internal/booking` treats SMS the same way it already treats email. The docs URL from the
+  "M8 unblocked" entry below (`dashboard.philsms.com/developers/docs`) required a logged-in
+  dashboard session and returned 401 to an unauthenticated fetch; the user supplied the working
+  public docs URL (`app.philsms.com/developers/documentation`) instead, which gave the real
+  spec: `POST https://app.philsms.com/api/v3/sms/send`, `Authorization: Bearer <SMS_API_KEY>`,
+  `Accept`/`Content-Type: application/json`, body `{recipient, sender_id, type: "plain",
+  message}` — note the send endpoint's host (`app.philsms.com`) differs from the dashboard's
+  host (`dashboard.philsms.com`). **New `SMS_SENDER_ID` env var (not previously in
+  `.env.example`, user-directed)**: defaults to `"PhilSMS"`, the platform's own shared sender
+  name usable without registering a dedicated one — set per user instruction mid-implementation.
+  **Phone normalization (not specified in PLAN.md)**: `patients.phone` (`internal/patient`) has
+  always been unvalidated free text; `sms.NormalizePHPhone` converts the common local forms
+  (`+639171234567`, `639171234567`, `09171234567`, `9171234567`) to the `63XXXXXXXXXX` shape
+  PhilSMS's `recipient` field expects, rejecting anything else as `ErrInvalidPhone` rather than
+  forwarding a malformed number to the API. **SMS confirmation is best-effort, unlike email**:
+  `booking.Service.Book` already fails the whole booking if the email confirmation send fails
+  (established in M7); SMS instead only logs on failure (missing/invalid phone, or a PhilSMS API
+  error) and does not fail the booking, since phone — unlike email, the verified account
+  identifier — is optional and never format-checked at write time. `server.NewRouter` and
+  `booking.NewService` both gained an `sms.Sender` parameter; `cmd/server/main.go` wires the real
+  `PhilSMSSender`, the integration harness wires a new `FakeSMSSender` (mirrors `FakeMailer`) —
+  every existing integration test file's `NewTestServer(t)` call site was updated for the added
+  return value. New `philsms_test.go` unit-tests `NormalizePHPhone` (valid/invalid formats) and
+  `PhilSMSSender.Send` (request shape, auth header, success/error response handling) against a
+  local `httptest` server. New integration test `TestBooking_SendsSMSConfirmationWhenPhoneOnFile`
+  covers the send path end-to-end; every other booking test implicitly covers the no-phone
+  skip path (none of them set a phone, none trigger an SMS). `go test ./...` green.
 - **2026-08-03** (M8 unblocked): SMS provider confirmed as **PhilSMS**
   (dashboard.philsms.com). User added `SMS_PROVIDER=philsms` and `SMS_API_KEY=<redacted>` to
   `backend/.env`. API base URL supplied: `https://dashboard.philsms.com/api/v3/` (PhilSMS's
