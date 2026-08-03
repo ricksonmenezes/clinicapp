@@ -17,9 +17,10 @@ instructions.
       Integration test harness scaffolded (testserver, testdb, FakeMailer, helpers).
       Full register → verify-email → login → protected-endpoint e2e test passing.
       `go test ./...` green with zero manual steps.
-- [ ] **M2** — Patient & consultant management: patient profile CRUD, consultant profile CRUD,
-      global commission config, per-service commission override, attendant profiles.
-      Backoffice HTMX pages for each. Tests green.
+- [x] **M2** — Patient & consultant management: patient profile CRUD, consultant profile CRUD,
+      global commission config, attendant profiles. Role-gated (`admin`/`clinician`) via new
+      `middleware.RequireRole`. Per-service commission override deferred to M3 (needs the
+      `services` table). `go test ./...` green.
 - [ ] **M3** — Services & packages: service CRUD (price, requires_consultant flag), package/promo
       definition (N sessions, package price, principal consultant), patient package subscription.
       Backoffice pages. Tests green.
@@ -45,6 +46,8 @@ instructions.
 
 ## Pending / deferred items
 
+- Per-service commission override (`consultant_service_commission` table): needs `services`
+  (M3) for its `service_id` FK. Land it alongside M3's service CRUD migrations.
 - SMS provider: user to confirm which provider (Twilio, Vonage, local Philippine SMS gateway, etc.)
   before M8 can start. Interface is abstracted in `internal/sms/` — implementation slots in when
   confirmed.
@@ -57,6 +60,36 @@ instructions.
 
 ## Decision log
 
+- **2026-08-03** (M2): Patient & consultant management complete. New `internal/patient`,
+  `internal/consultant`, `internal/attendant` packages, each following M1's
+  models/repository/service/handlers layering exactly (raw SQL via pgx/v5, sentinel errors,
+  `statusForError`, `renderer.Render` for the web/mobile dispatch). Each `Create` cross-checks
+  the given `user_id` against `auth.Repository` and rejects if the user doesn't exist or doesn't
+  hold the matching role (patient/clinician/attendant respectively) — `ErrInvalidRole`/
+  `ErrUserNotFound`. Migrations `007`–`009` add `patients`, `consultants` (with
+  `default_commission NUMERIC(5,2)`), `attendants`, each `user_id UUID UNIQUE REFERENCES
+  users(id)`. New `middleware.RequireRole(roles...)` reads `middleware.ClaimsFrom` and 403s if
+  the caller's role isn't in the allow-list; chained inside `middleware.Auth`. Routes:
+  `POST/GET /patients`, `GET/PATCH /patients/{id}` (admin+clinician read, admin write),
+  `POST/GET/PATCH /consultants(/{id})` and `/attendants(/{id})` (admin only), matching PLAN.md's
+  API table. Web-mode responses render minimal XSS-safe HTML fragments (`html.EscapeString`) —
+  no template engine introduced yet, matching M1's inline-string convention.
+  **Per-service commission override deferred to M3**: `consultant_service_commission` needs a
+  `service_id` FK to a `services` table that doesn't exist until M3, so only the consultant's
+  global `default_commission` ships in M2; the override table lands with M3's service CRUD.
+  **Security fix bundled with M2** (user-approved before starting): `POST /auth/register` used
+  to accept an arbitrary `role` in the body — harmless while nothing checked roles, but M2 adds
+  the first role-gated routes, making it a real privilege-escalation path. Fixed by: (1)
+  `auth.Service.Register` now always creates `role=patient`, ignoring any role in the request;
+  (2) new admin-only `POST /auth/register-staff` creates clinician/attendant/admin accounts,
+  active immediately, no email verification round-trip; (3) `server.Bootstrap` (called from
+  `main.go` and `testserver.go`) idempotently creates one admin from
+  `ADMIN_BOOTSTRAP_EMAIL`/`ADMIN_BOOTSTRAP_PASSWORD` env vars, solving the chicken-and-egg
+  problem of needing an admin to create the first admin. M1's `TestAuthFlow_*` tests updated:
+  a self-registered (patient-role) token now gets 403 on `/patients` instead of 200, since that
+  route is no longer role-agnostic. 24 integration tests total, `go test ./...` green. Manually
+  smoke-tested against local Postgres: bootstrap admin login → register-staff → consultant CRUD
+  → HTML fragment rendering, all correct.
 - **2026-08-03** (M1): Auth module complete. `internal/config`, `internal/store` (migration
   runner against numbered SQL files in `migrations/`), `internal/mailer` (SMTP, Mailpit-
   compatible), `internal/renderer` (X-Client-Type dispatch), `internal/middleware`

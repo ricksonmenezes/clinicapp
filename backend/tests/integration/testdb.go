@@ -22,6 +22,9 @@ var appTables = []string{
 	"password_reset_tokens",
 	"refresh_tokens",
 	"email_verification_tokens",
+	"patients",
+	"consultants",
+	"attendants",
 	"users",
 }
 

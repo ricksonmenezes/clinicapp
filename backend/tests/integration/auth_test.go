@@ -50,8 +50,12 @@ func TestAuthFlow_RegisterVerifyLoginProtected(t *testing.T) {
 		t.Fatalf("login: expected access_token in response, got %v", loginResp)
 	}
 
-	if resp := Get(t, ts.URL, "/patients", "mobile", loginAccessToken, nil); resp.StatusCode != http.StatusOK {
-		t.Fatalf("protected /patients with token: want 200, got %d", resp.StatusCode)
+	// e2e@example.com self-registered, so it's a patient — /patients is
+	// admin/clinician-only (see M2's role gate), so a valid patient token
+	// still proves the auth middleware ran (403, not 401) but is correctly
+	// denied by the role check.
+	if resp := Get(t, ts.URL, "/patients", "mobile", loginAccessToken, nil); resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("protected /patients with patient token: want 403, got %d", resp.StatusCode)
 	}
 
 	if resp := Get(t, ts.URL, "/patients", "mobile", "", nil); resp.StatusCode != http.StatusUnauthorized {
@@ -106,8 +110,10 @@ func TestAuthFlow_WebClientUsesCookiesAndRedirects(t *testing.T) {
 		t.Fatalf("verify-email: expected httpOnly access_token and refresh_token cookies, got %v", resp.Cookies())
 	}
 
-	if resp := GetClient(t, client, ts.URL, "/patients", "web", "", nil); resp.StatusCode != http.StatusOK {
-		t.Fatalf("protected /patients via cookie: want 200, got %d", resp.StatusCode)
+	// webflow@example.com is a patient too — same role-gate reasoning as
+	// the mobile flow test above.
+	if resp := GetClient(t, client, ts.URL, "/patients", "web", "", nil); resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("protected /patients via cookie: want 403, got %d", resp.StatusCode)
 	}
 }
 
@@ -276,6 +282,72 @@ func TestForgotPassword_UnknownEmailDoesNotLeak(t *testing.T) {
 	}
 	if got := fakeMailer.CountTo("nobody-registered@example.com"); got != 0 {
 		t.Fatalf("want no email sent for unknown address, got %d", got)
+	}
+}
+
+// TestRegister_CannotSelfAssignRole proves the M2 lockdown: a role field in
+// the public register body is ignored, and the resulting account can never
+// reach an admin-only route.
+func TestRegister_CannotSelfAssignRole(t *testing.T) {
+	ts, fakeMailer := NewTestServer(t)
+	email := "wannabeadmin@example.com"
+
+	resp := PostJSON(t, ts.URL, "/auth/register", "mobile", map[string]string{
+		"email": email, "password": "correcthorsebattery", "role": "admin",
+	}, nil)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("register: want 201, got %d", resp.StatusCode)
+	}
+
+	msg, _ := fakeMailer.LastTo(email)
+	Get(t, ts.URL, "/auth/verify-email?token="+ExtractToken(t, msg.Body), "mobile", "", nil)
+
+	var loginResp map[string]any
+	PostJSON(t, ts.URL, "/auth/login", "mobile", map[string]string{
+		"email": email, "password": "correcthorsebattery",
+	}, &loginResp)
+	token, _ := loginResp["access_token"].(string)
+
+	resp = PostJSONAuth(t, ts.URL, "/auth/register-staff", "mobile", token, map[string]string{
+		"email": "shouldnotwork@example.com", "password": "correcthorsebattery", "role": "admin",
+	}, nil)
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("register-staff with self-registered token claiming admin: want 403, got %d", resp.StatusCode)
+	}
+}
+
+func TestRegisterStaff_RequiresAdminAuth(t *testing.T) {
+	ts, _ := NewTestServer(t)
+
+	resp := PostJSON(t, ts.URL, "/auth/register-staff", "mobile", map[string]string{
+		"email": "staff@example.com", "password": "correcthorsebattery", "role": "clinician",
+	}, nil)
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("register-staff without token: want 401, got %d", resp.StatusCode)
+	}
+
+	adminToken := LoginAdmin(t, ts.URL)
+	var created map[string]any
+	resp = PostJSONAuth(t, ts.URL, "/auth/register-staff", "mobile", adminToken, map[string]string{
+		"email": "staff@example.com", "password": "correcthorsebattery", "role": "clinician",
+	}, &created)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("register-staff as admin: want 201, got %d (%v)", resp.StatusCode, created)
+	}
+	if created["role"] != "clinician" {
+		t.Fatalf("register-staff: expected role clinician, got %v", created["role"])
+	}
+}
+
+func TestRegisterStaff_RejectsPatientRole(t *testing.T) {
+	ts, _ := NewTestServer(t)
+	adminToken := LoginAdmin(t, ts.URL)
+
+	resp := PostJSONAuth(t, ts.URL, "/auth/register-staff", "mobile", adminToken, map[string]string{
+		"email": "shouldbepatient@example.com", "password": "correcthorsebattery", "role": "patient",
+	}, nil)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("register-staff with role=patient: want 400, got %d", resp.StatusCode)
 	}
 }
 
