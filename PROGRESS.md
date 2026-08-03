@@ -24,7 +24,7 @@ instructions.
 - [x] **M3** — Services & packages: service CRUD (price, requires_consultant flag), package/promo
       definition (N sessions, package price, principal consultant), patient package subscription.
       Backoffice pages. Tests green.
-- [ ] **M4** — Session management: session recording (patient, service, consultant nullable,
+- [x] **M4** — Session management: session recording (patient, service, consultant nullable,
       attendants), commission resolution logic (session override → service override → consultant
       default), commission snapshot storage, session history per patient and per consultant.
       Tests green.
@@ -62,6 +62,36 @@ instructions.
 
 ## Decision log
 
+- **2026-08-03** (M4): Session management complete. New `internal/session` package
+  (`Session`/`CommissionSnapshot` models, `Repository`, `Service`, `Handler` — same layering as
+  every prior module). Migrations `014`–`016` add `sessions`, `session_attendants`,
+  `session_commission_snapshot`. Routes: `POST/GET /sessions`, `GET /sessions/{id}`, all
+  admin+clinician per PLAN.md's API table; `GET /sessions` takes optional `patient_id`/
+  `consultant_id` query params rather than dedicated sub-routes, which is how "session history
+  per patient and per consultant" (PLAN.md Module 5) is served.
+  `POST /sessions` validates patient/service/consultant/attendant ids and, for
+  package-linked sessions, that the `patient_package` belongs to the same patient and still has
+  `sessions_remaining > 0`; if the service's `requires_consultant` flag is set, omitting
+  `consultant_id` is a 400. Commission resolution (session override → service override →
+  consultant default) lives in `session.Service.resolveCommission`, backed by a new
+  `consultant.Repository.GetServiceCommission` single-row lookup (vs. the existing `List`).
+  Session-level override is a one-shot `commission_override` field on the create request, not a
+  persisted config row — matching PLAN.md's schema, which has no session-override table, only the
+  `resolution_source` enum value on the snapshot. **Commission base amount decision (not
+  specified in PLAN.md)**: both standalone and package-linked sessions calculate
+  `clinic_amount`/`consultant_amount` off the session's `service.price`; package purchases are not
+  amortized per session, since PLAN.md only specifies that the *performing consultant* (not the
+  package's principal) is who earns commission, and defines no per-session pricing model for
+  packages. Revisit if M5 invoicing needs package revenue split differently.
+  `session.Repository.Create` runs everything — session insert, attendant roster, commission
+  snapshot, and (if package-linked) the `sessions_remaining` decrement — inside one transaction;
+  the decrement uses a conditional `UPDATE ... WHERE sessions_remaining > 0` as the actual
+  concurrency-safe guard, not just the service-layer pre-check. It reaches into `patient_packages`
+  (owned by `internal/promo`) directly rather than introducing a cross-package transaction/querier
+  abstraction for this one call site. 8 new integration tests in
+  `tests/integration/session_test.go` cover all three resolution sources, attendant-only services
+  (no consultant → no snapshot), the `requires_consultant` rejection, package exhaustion, patient/
+  package ownership mismatch, and history filtering. `go test ./...` green.
 - **2026-08-03** (Resend migration — implemented): The Resend switch and Mailpit removal
   described in the two entries below are now implemented, not just documented.
   `internal/mailer` replaced `SMTPMailer` with `ResendMailer` (`POST api.resend.com/emails`,
