@@ -115,6 +115,24 @@ func (r *Repository) UpsertServiceCommission(ctx context.Context, consultantID, 
 	return sc, nil
 }
 
+// GetServiceCommission looks up the override rate for a single
+// consultant/service pair — used by internal/session to resolve the
+// service-level step of the commission resolution order.
+func (r *Repository) GetServiceCommission(ctx context.Context, consultantID, serviceID string) (*ServiceCommission, error) {
+	sc := &ServiceCommission{}
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, consultant_id, service_id, commission, created_at, updated_at
+		FROM consultant_service_commission WHERE consultant_id = $1 AND service_id = $2
+	`, consultantID, serviceID).Scan(&sc.ID, &sc.ConsultantID, &sc.ServiceID, &sc.Commission, &sc.CreatedAt, &sc.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrServiceCommissionNotFound
+		}
+		return nil, err
+	}
+	return sc, nil
+}
+
 func (r *Repository) ListServiceCommissions(ctx context.Context, consultantID string) ([]*ServiceCommission, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, consultant_id, service_id, commission, created_at, updated_at

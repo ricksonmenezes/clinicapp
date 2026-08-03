@@ -28,11 +28,12 @@ type ServiceCommission struct {
 }
 
 var (
-	ErrNotFound          = errors.New("consultant not found")
-	ErrUserNotFound      = errors.New("user not found")
-	ErrAlreadyExists     = errors.New("consultant profile already exists for this user")
-	ErrInvalidRole       = errors.New("user must have the clinician role")
-	ErrValidation        = errors.New("full_name is required")
-	ErrInvalidCommission = errors.New("default_commission must be between 0 and 100")
-	ErrServiceNotFound   = errors.New("service not found")
+	ErrNotFound                  = errors.New("consultant not found")
+	ErrUserNotFound              = errors.New("user not found")
+	ErrAlreadyExists             = errors.New("consultant profile already exists for this user")
+	ErrInvalidRole               = errors.New("user must have the clinician role")
+	ErrValidation                = errors.New("full_name is required")
+	ErrInvalidCommission         = errors.New("default_commission must be between 0 and 100")
+	ErrServiceNotFound           = errors.New("service not found")
+	ErrServiceCommissionNotFound = errors.New("service commission override not found")
 )

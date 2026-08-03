@@ -21,6 +21,7 @@ import (
 	"clinicapp/backend/internal/patient"
 	"clinicapp/backend/internal/promo"
 	"clinicapp/backend/internal/service"
+	"clinicapp/backend/internal/session"
 )
 
 // Bootstrap creates the configured admin account if it doesn't exist yet.
@@ -54,16 +55,23 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer) http.Han
 	patientRepo := patient.NewRepository(pool)
 	consultantRepo := consultant.NewRepository(pool)
 
+	attendantRepo := attendant.NewRepository(pool)
+
 	patientHandler := patient.NewHandler(patient.NewService(patientRepo, authRepo))
 	consultantHandler := consultant.NewHandler(consultant.NewService(consultantRepo, authRepo, serviceRepo))
-	attendantHandler := attendant.NewHandler(attendant.NewService(attendant.NewRepository(pool), authRepo))
+	attendantHandler := attendant.NewHandler(attendant.NewService(attendantRepo, authRepo))
 	serviceHandler := service.NewHandler(service.NewManager(serviceRepo))
 
 	packageRepo := promo.NewPackageRepository(pool)
+	patientPackageRepo := promo.NewPatientPackageRepository(pool)
 	promoHandler := promo.NewHandler(
 		promo.NewPackageManager(packageRepo, serviceRepo),
-		promo.NewPatientPackageManager(promo.NewPatientPackageRepository(pool), packageRepo, patientRepo, consultantRepo),
+		promo.NewPatientPackageManager(patientPackageRepo, packageRepo, patientRepo, consultantRepo),
 	)
+
+	sessionHandler := session.NewHandler(session.NewService(
+		session.NewRepository(pool), patientRepo, serviceRepo, consultantRepo, attendantRepo, patientPackageRepo,
+	))
 
 	registerLimiter := middleware.NewRateLimiter(3, time.Minute)
 	loginLimiter := middleware.NewRateLimiter(5, time.Minute)
@@ -125,6 +133,10 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer) http.Han
 	mux.Handle("POST /patient-packages", authRequired(adminOnly(http.HandlerFunc(promoHandler.CreatePatientPackage))))
 	mux.Handle("GET /patient-packages", authRequired(adminOrClinician(http.HandlerFunc(promoHandler.ListPatientPackages))))
 	mux.Handle("GET /patient-packages/{id}", authRequired(adminOrClinician(http.HandlerFunc(promoHandler.GetPatientPackage))))
+
+	mux.Handle("POST /sessions", authRequired(adminOrClinician(http.HandlerFunc(sessionHandler.Create))))
+	mux.Handle("GET /sessions", authRequired(adminOrClinician(http.HandlerFunc(sessionHandler.List))))
+	mux.Handle("GET /sessions/{id}", authRequired(adminOrClinician(http.HandlerFunc(sessionHandler.Get))))
 
 	return middleware.ClientType(mux)
 }
