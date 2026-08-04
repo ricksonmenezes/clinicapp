@@ -21,6 +21,7 @@ import (
 	"clinicapp/backend/internal/mailer"
 	"clinicapp/backend/internal/middleware"
 	"clinicapp/backend/internal/patient"
+	"clinicapp/backend/internal/portal"
 	"clinicapp/backend/internal/prescription"
 	"clinicapp/backend/internal/promo"
 	"clinicapp/backend/internal/report"
@@ -43,7 +44,13 @@ func Bootstrap(ctx context.Context, pool *pgxpool.Pool, cfg *config.Config) erro
 	return svc.EnsureBootstrapAdmin(ctx, cfg.AdminBootstrapEmail, cfg.AdminBootstrapPassword)
 }
 
-func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer, s sms.Sender) http.Handler {
+// NewRouter builds the full HTTP surface. templatesDir/staticDir locate the
+// patient-portal page templates and their CSS/JS assets — passed in rather
+// than hardcoded, same as store.RunMigrations' migrations dir, since
+// cmd/server/main.go and the integration test harness run from different
+// working directories and so need different relative paths to the same
+// repo-root web/ directory.
+func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer, s sms.Sender, templatesDir, staticDir string) (http.Handler, error) {
 	authRepo := auth.NewRepository(pool)
 	authSvc := auth.NewService(authRepo, m, auth.ServiceConfig{
 		JWTSecret:          cfg.JWTSecret,
@@ -97,6 +104,12 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer, s sms.Se
 	))
 
 	reportHandler := report.NewHandler(report.NewService(report.NewRepository(pool)))
+
+	portalTemplates, err := portal.LoadTemplates(templatesDir)
+	if err != nil {
+		return nil, err
+	}
+	portalHandler := portal.NewHandler(portalTemplates, cfg.JWTSecret)
 
 	registerLimiter := middleware.NewRateLimiter(3, time.Minute)
 	loginLimiter := middleware.NewRateLimiter(5, time.Minute)
@@ -210,7 +223,22 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer, s sms.Se
 	mux.Handle("GET /reports/service-popularity", authRequired(adminOnly(http.HandlerFunc(reportHandler.ServicePopularity))))
 	mux.Handle("GET /reports/bookings", authRequired(adminOnly(http.HandlerFunc(reportHandler.BookingVolume))))
 
-	return middleware.ClientType(mux)
+	// Patient-facing portal pages (PLAN.md Module 8's "customer-facing web
+	// portal" — HTML page shells around the API/fragment endpoints above,
+	// not a second API surface). "/{$}" matches only the exact root path,
+	// not every unmatched path, unlike a bare "/" pattern which Go's
+	// ServeMux treats as a catch-all subtree.
+	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.Dir(staticDir))))
+	mux.HandleFunc("GET /{$}", portalHandler.Home)
+	mux.HandleFunc("GET /register", portalHandler.RegisterPage)
+	mux.HandleFunc("GET /login", portalHandler.LoginPage)
+	mux.HandleFunc("GET /check-email", portalHandler.CheckEmailPage)
+	mux.HandleFunc("GET /forgot-password", portalHandler.ForgotPasswordPage)
+	mux.HandleFunc("GET /reset-password", portalHandler.ResetPasswordPage)
+	mux.HandleFunc("GET /dashboard", portalHandler.Dashboard)
+	mux.HandleFunc("GET /book", portalHandler.BookPage)
+
+	return middleware.ClientType(mux), nil
 }
 
 // healthzHandler always returns JSON, regardless of X-Client-Type — it's a

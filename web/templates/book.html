@@ -1,0 +1,31 @@
+{{define "content"}}
+<section>
+  <h1>Book a service</h1>
+</section>
+
+<section class="card">
+  <h2>1. Choose a service</h2>
+  <div id="service-list" class="selectable-list" hx-get="/services" hx-trigger="load" hx-swap="innerHTML">Loading services…</div>
+</section>
+
+<section class="card">
+  <h2>2. Choose a date</h2>
+  <label>Date
+    <input type="date" id="booking-date">
+  </label>
+  <div id="slot-list" class="selectable-list"></div>
+</section>
+
+<section class="card">
+  <h2>3. Confirm</h2>
+  <div id="booking-message"></div>
+  <form id="booking-form" method="post" action="/bookings" data-json data-target="#booking-message">
+    <input type="hidden" name="service_id" id="selected-service-id">
+    <input type="hidden" name="scheduled_at" id="selected-slot">
+    <button type="submit" id="confirm-booking" disabled>Confirm booking</button>
+  </form>
+  <p><a href="/dashboard">Back to dashboard</a></p>
+</section>
+
+<script src="/static/js/book.js"></script>
+{{end}}

@@ -44,7 +44,7 @@ func (h *Handler) Availability(w http.ResponseWriter, r *http.Request) {
 		if s.Available {
 			status = "available"
 		}
-		htmlBuf.WriteString(fmt.Sprintf(`<li data-available="%t">%s (%s)</li>`, s.Available, html.EscapeString(s.ScheduledAt.Format(time.RFC3339)), status))
+		htmlBuf.WriteString(fmt.Sprintf(`<li data-available="%t" data-scheduled-at="%s">%s (%s)</li>`, s.Available, html.EscapeString(s.ScheduledAt.Format(time.RFC3339)), html.EscapeString(s.ScheduledAt.Format(time.RFC3339)), status))
 	}
 	htmlBuf.WriteString("</ul>")
 

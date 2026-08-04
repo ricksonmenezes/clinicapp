@@ -1,0 +1,32 @@
+{{define "base"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} · clinicapp</title>
+<link rel="stylesheet" href="/static/css/app.css">
+<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+<script src="/static/js/app.js"></script>
+</head>
+<body>
+<header class="site-header">
+  <nav>
+    <a class="brand" href="/">clinicapp</a>
+    {{if .Authenticated}}
+      <a href="/dashboard">Dashboard</a>
+      <a href="/book">Book a service</a>
+      <form class="nav-logout" method="post" action="/auth/logout">
+        <button type="submit">Log out</button>
+      </form>
+    {{else}}
+      <a href="/login">Log in</a>
+      <a href="/register">Register</a>
+    {{end}}
+  </nav>
+</header>
+<main>
+{{template "content" .}}
+</main>
+</body>
+</html>
+{{end}}

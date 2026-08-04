@@ -1,0 +1,16 @@
+{{define "content"}}
+<section class="form-page">
+  <h1>Create your account</h1>
+  <div id="form-message"></div>
+  <form method="post" action="/auth/register" data-json data-target="#form-message">
+    <label>Email
+      <input type="email" name="email" autocomplete="email" required>
+    </label>
+    <label>Password
+      <input type="password" name="password" autocomplete="new-password" minlength="8" required>
+    </label>
+    <button type="submit">Register</button>
+  </form>
+  <p>Already have an account? <a href="/login">Log in</a></p>
+</section>
+{{end}}

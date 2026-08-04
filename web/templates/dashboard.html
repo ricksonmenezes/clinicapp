@@ -1,0 +1,33 @@
+{{define "content"}}
+<section>
+  <h1>Your dashboard</h1>
+</section>
+
+<section class="card">
+  <h2>Your profile</h2>
+  <div id="profile" hx-get="/patients/me" hx-trigger="load" hx-swap="innerHTML">Loading your profile…</div>
+</section>
+
+<section class="card">
+  <h2>Complete or update your profile</h2>
+  <div id="profile-form-message"></div>
+  <form method="post" action="/patients/me" data-json data-target="#profile-form-message">
+    <label>Full name
+      <input type="text" name="full_name" required>
+    </label>
+    <label>Date of birth
+      <input type="date" name="dob">
+    </label>
+    <label>Phone
+      <input type="tel" name="phone" placeholder="09171234567">
+    </label>
+    <button type="submit">Save</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Your bookings</h2>
+  <div id="bookings" hx-get="/bookings" hx-trigger="load" hx-swap="innerHTML">Loading your bookings…</div>
+  <p><a class="button" href="/book">Book a service</a></p>
+</section>
+{{end}}

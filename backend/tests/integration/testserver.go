@@ -17,6 +17,11 @@ const (
 	TestAdminPassword = "admin-bootstrap-password"
 )
 
+// webTemplatesDir/webStaticDir are relative to this package's directory
+// (backend/tests/integration/), same convention as testdb.go's migrationsDir.
+const webTemplatesDir = "../../../web/templates"
+const webStaticDir = "../../../web/static"
+
 // NewTestServer spins up the full HTTP server (real test DB, injected
 // FakeMailer and FakeSMSSender) behind an httptest.Server, and returns both
 // fakes so tests can assert on outbound email/SMS. The server and its DB
@@ -46,7 +51,10 @@ func NewTestServer(t *testing.T) (*httptest.Server, *FakeMailer, *FakeSMSSender)
 		t.Fatalf("bootstrap test admin: %v", err)
 	}
 
-	router := server.NewRouter(pool, cfg, fakeMailer, fakeSMS)
+	router, err := server.NewRouter(pool, cfg, fakeMailer, fakeSMS, webTemplatesDir, webStaticDir)
+	if err != nil {
+		t.Fatalf("build router: %v", err)
+	}
 	ts := httptest.NewServer(router)
 	t.Cleanup(ts.Close)
 

@@ -12,10 +12,13 @@ import (
 	"clinicapp/backend/internal/store"
 )
 
-// migrationsDir is relative to the process working directory, which is
-// always backend/ per CLAUDE.md's documented run commands (local `cd backend
-// && go run ./cmd/server`, and deploy/clinicapp.service's WorkingDirectory).
+// migrationsDir, webTemplatesDir, and webStaticDir are relative to the
+// process working directory, which is always backend/ per CLAUDE.md's
+// documented run commands (local `cd backend && go run ./cmd/server`, and
+// deploy/clinicapp.service's WorkingDirectory).
 const migrationsDir = "../migrations"
+const webTemplatesDir = "../web/templates"
+const webStaticDir = "../web/static"
 
 func main() {
 	cfg, err := config.Load()
@@ -41,7 +44,10 @@ func main() {
 
 	m := mailer.NewResendMailer(cfg.ResendAPIKey, cfg.MailFrom)
 	s := sms.NewPhilSMSSender(cfg.SMSAPIKey, cfg.SMSSenderID)
-	router := server.NewRouter(pool, cfg, m, s)
+	router, err := server.NewRouter(pool, cfg, m, s, webTemplatesDir, webStaticDir)
+	if err != nil {
+		log.Fatalf("build router: %v", err)
+	}
 
 	log.Printf("clinicapp server listening on :%s", cfg.Port)
 	if err := http.ListenAndServe(":"+cfg.Port, router); err != nil {

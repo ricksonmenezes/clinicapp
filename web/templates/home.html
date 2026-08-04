@@ -1,0 +1,12 @@
+{{define "content"}}
+<section class="hero">
+  <h1>Welcome to clinicapp</h1>
+  <p>Book appointments with our consultants online, any time.</p>
+  {{if .Authenticated}}
+    <a class="button" href="/dashboard">Go to your dashboard</a>
+  {{else}}
+    <a class="button" href="/register">Get started</a>
+    <a href="/login">Already have an account? Log in</a>
+  {{end}}
+</section>
+{{end}}
