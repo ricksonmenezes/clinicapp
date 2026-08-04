@@ -53,15 +53,26 @@ instructions.
   `reset-password`, booking confirmation) returns an error, since all of them fail the whole
   request if the mailer call fails (SMS confirmation is unaffected — it's best-effort). This is
   the only known gap between "deployed" and "fully usable by real patients."
-- Phase 2: Google / Apple OAuth (user_providers table scaffolded in M1, unused until Phase 2).
-- Phase 2: mobile app (React Native or Flutter) consuming the same Go API.
-- Phase 2: reporting / analytics dashboard.
-- Phase 2: multi-clinic / multi-branch support.
+- **Phase 2** — reporting / analytics dashboard (see `PLAN.md`'s "Phase 2 scope (deferred)").
+- **Phase 3** — mobile app (React Native or Flutter) consuming the same Go API.
+- **Phase 4** — multi-clinic / multi-branch support.
+- **Unscheduled** — Google / Apple OAuth (`user_providers` table scaffolded in M1, unused; not
+  assigned to a phase — see `PLAN.md`).
 
 ---
 
 ## Decision log
 
+- **2026-08-04** (roadmap re-scoped): The old flat "Phase 2 (deferred)" bucket — OAuth, mobile
+  app, reporting/analytics, multi-clinic — is now split into distinct phases in `PLAN.md`:
+  **Phase 2** = reporting/analytics dashboard; **Phase 3** = mobile app; **Phase 4** =
+  multi-clinic/multi-branch support; **OAuth** moved to an "Unscheduled" bucket (doesn't fit
+  cleanly into any of the three above, not currently prioritized). **Does not touch the M0–M9
+  milestone checklist or any already-shipped scope** — the already-complete patient
+  register/verify-email/login/book flow (M1 + M7 + M8) and the already-complete admin
+  service/consultant/commission/pricing management (M2 + M3) both stay documented exactly as
+  before; the new phase list is additive, describing only what's not yet built. Docs-only change
+  across `PLAN.md` and this file — no code changed.
 - **2026-08-04** (M9): Production deploy complete. Live at `https://clinic.ricksonmenezes.com`.
   **Server state discovered before provisioning (not previously documented)**: the netcup box
   (`ssh netcup`, Debian 13) already runs Go 1.26.5 and Caddy 2.6.2 for unrelated sites (a Hugo

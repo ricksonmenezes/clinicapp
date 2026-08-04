@@ -39,7 +39,8 @@ A full-stack clinic scheduling and management platform with:
 - Password reset flow (forgot → email link → reset → revoke all refresh tokens)
 - Rate limiting on all `/auth/*` routes
 - Role field on users: `patient | clinician | attendant | admin`
-- Schema forward-compatible for Phase 2 OAuth (`user_providers` table scaffolded, unused)
+- Schema forward-compatible for future OAuth support (`user_providers` table scaffolded, unused —
+  see "Unscheduled" under Phase 2 scope below)
 
 ### Module 2 — Patient management (backoffice)
 - Create / view / edit patient profiles
@@ -89,10 +90,29 @@ A full-stack clinic scheduling and management platform with:
 
 ## Phase 2 scope (deferred)
 
-- Third-party OAuth login (Google, Apple) — `user_providers` table already scaffolded in Phase 1
-- Reporting / analytics dashboard
-- Mobile app (React Native or Flutter) consuming the same Go API
-- Multi-clinic / multi-branch support
+> Patient self-registration/verification/login and booking a service, and admin management of
+> services/consultants/commissions/pricing, are already delivered as part of Phase 1 above
+> (Modules 1–8, shipped as milestones M1–M9 — see `PROGRESS.md`). What follows is what's still
+> ahead, broken into phases by theme rather than lumped into one deferred bucket.
+
+### Phase 2 — Reporting & analytics
+- Reporting / analytics dashboard: bookings, revenue, commission payouts, service popularity, etc.
+- Expected to build on data Phase 1 already captures (sessions, commission snapshots, invoices) —
+  primarily new read/aggregate endpoints and a backoffice UI, not new domain entities.
+
+### Phase 3 — Mobile app
+- Native mobile app (React Native or Flutter) consuming the same Go API via `X-Client-Type: mobile`
+- No new backend API surface expected — the existing endpoints already serve JSON for this client
+  type; this phase is client-side work.
+
+### Phase 4 — Multi-clinic / multi-branch support
+- Support multiple clinic locations/branches under one account
+- Needs a branch/location entity and most existing tables scoped to a branch — schema design not
+  yet started.
+
+### Unscheduled
+- Third-party OAuth login (Google, Apple) — `user_providers` table already scaffolded in Phase 1,
+  unused. Not assigned to a phase above; revisit when it becomes a priority.
 
 ---
 
@@ -102,7 +122,7 @@ A full-stack clinic scheduling and management platform with:
 
 - **JWT + refresh token pattern.** Access tokens are short-lived (15 min) to limit exposure; refresh tokens are stored in the DB so they can be individually revoked (logout, password reset). Web stores both in httpOnly cookies (XSS-safe); mobile receives them in the JSON body and stores client-side.
 
-- **Email as unique identifier.** Lowercased on write, enforced unique at DB level. Phase 2 OAuth will link to the same `users` row via `user_providers` — no breakage.
+- **Email as unique identifier.** Lowercased on write, enforced unique at DB level. Future OAuth support will link to the same `users` row via `user_providers` — no breakage.
 
 - **Commission resolution hierarchy.** Session-level override wins, then service-level override, then consultant default. The resolution used is always snapshotted on the session record so historical reporting is accurate even if rates change later.
 
@@ -197,7 +217,7 @@ password_reset_tokens
   expires_at TIMESTAMP
   used_at    TIMESTAMP NULL
 
--- Phase 2 ready; unused in Phase 1
+-- forward-compatible for future OAuth support (unscheduled); unused currently
 user_providers
   id           UUID PK
   user_id      UUID FK → users
