@@ -42,6 +42,9 @@ instructions.
       Cloudflare orange proxy active (TLS). `curl https://clinic.ricksonmenezes.com/healthz` → ok.
       Auth/DB verified end-to-end on prod. Email-dependent flows (registration, booking
       confirmation) pending Resend domain verification — see decision log and pending items.
+- [x] **M10** — Reporting & analytics (Phase 2): four aggregate report endpoints (revenue,
+      commission payouts, service popularity, booking volume), admin-only, JSON for mobile and a
+      Chart.js-rendered fragment for web. Tests green.
 
 ---
 
@@ -53,7 +56,6 @@ instructions.
   `reset-password`, booking confirmation) returns an error, since all of them fail the whole
   request if the mailer call fails (SMS confirmation is unaffected — it's best-effort). This is
   the only known gap between "deployed" and "fully usable by real patients."
-- **Phase 2** — reporting / analytics dashboard (see `PLAN.md`'s "Phase 2 scope (deferred)").
 - **Phase 3** — mobile app (React Native or Flutter) consuming the same Go API.
 - **Phase 4** — multi-clinic / multi-branch support.
 - **Unscheduled** — Google / Apple OAuth (`user_providers` table scaffolded in M1, unused; not
@@ -63,6 +65,48 @@ instructions.
 
 ## Decision log
 
+- **2026-08-04** (M10): Reporting & analytics complete — the first Phase 2 milestone. New
+  `internal/report` package (`Repository`, `Service`, `Handler`, no new model/domain entity, no
+  new migration — pure read-aggregation over `invoices`, `session_commission_snapshot`, and
+  `sessions`, per `PLAN.md`'s note that Phase 2 needs "primarily new read/aggregate endpoints...
+  not new domain entities"). **Scope confirmed with the user before starting** (`PLAN.md`'s Phase
+  2 description was just "bookings, revenue, commission payouts, service popularity, etc." — see
+  `ARCHITECTURE.md` §5/§6 on why vague scope gets clarified up front now instead of guessed): four
+  reports — revenue over time, commission payouts per consultant, service popularity, booking
+  volume/trends — delivered as endpoints whose web-mode HTML fragment renders an actual chart
+  (Chart.js via CDN), not just a table; JSON for mobile as always.
+  Routes: `GET /reports/revenue`, `/reports/commission-payouts`, `/reports/service-popularity`,
+  `/reports/bookings`, all query-params `start`/`end` (RFC3339 or `YYYY-MM-DD`, default: last 30
+  days) and `group_by=day|week|month` (revenue/bookings only, default `day`).
+  **Role gating (not specified in PLAN.md — resolved by precedent, not asked)**: all four are
+  admin-only, matching the existing `GET /consultants/{id}/commission-history` precedent from M5
+  — aggregate financial/business reports are treated as more sensitive than the admin+clinician
+  per-record reads (sessions, invoices, patient-packages), so clinicians don't get visibility into
+  other consultants' payouts or clinic-wide revenue. **Chart rendering approach**: each report's
+  web fragment is self-contained — a bare `<canvas>`, a `chart.js@4` CDN `<script>` tag, and an
+  inline `<script>` that locates its own canvas via `document.currentScript.closest
+  ('.report-chart')` rather than a unique element id, so multiple report widgets can safely land
+  on the same page without id collisions. All dynamic values (labels, values, chart type, dataset
+  label) are passed through `encoding/json.Marshal`, which HTML/JS-escapes `<`, `>`, `&` by
+  default, before being embedded in the `<script>` block — deliberate XSS-safety choice given
+  consultant/service names are user-supplied strings and this is the project's first fragment that
+  embeds data inside inline JS rather than plain escaped HTML text. Revenue buckets by
+  `invoices.issued_at` (when billed), booking volume/service popularity by `sessions.scheduled_at`
+  (when the appointment is/was), commission payouts by `session_commission_snapshot.created_at`
+  (when earned) — three different "which timestamp" choices per report, each the natural one for
+  that report's question, confirmed by manually seeding real data through a local dev server run
+  and inspecting the actual response (e.g. 5 invoices created back-to-back in one test session
+  all land in a single revenue bucket, correctly, since they share one `issued_at` day regardless
+  of their sessions' different `scheduled_at` dates). 9 new integration tests in `report_test.go`
+  cover all four reports' aggregation correctness, date-range exclusion, `group_by` validation,
+  `start >= end` rejection, admin-only gating (403 for clinician), and that the web fragment
+  actually contains chart markup. Manually smoke-tested beyond `go test`: ran the local dev
+  server, created real patient/consultant/service/session/invoice records, and fetched every
+  report's web-mode fragment via curl to confirm the emitted HTML/JS is well-formed (`go test`
+  alone can't confirm the client-side `Chart.js` bundle renders a correct chart — no real browser
+  runs in the test suite, and no dashboard page exists yet for it to be visually mounted on, a
+  pre-existing gap this milestone doesn't address, see M9's decision log entry on the `/` 404).
+  `go test ./...` green.
 - **2026-08-04** (roadmap re-scoped): The old flat "Phase 2 (deferred)" bucket — OAuth, mobile
   app, reporting/analytics, multi-clinic — is now split into distinct phases in `PLAN.md`:
   **Phase 2** = reporting/analytics dashboard; **Phase 3** = mobile app; **Phase 4** =
