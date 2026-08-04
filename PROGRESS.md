@@ -49,17 +49,15 @@ instructions.
       `/forgot-password`, `/reset-password`, `/dashboard`, `/book`) closing the gap where Module 8
       had only API/fragment endpoints and nothing mounted at `GET /` (a 404 since project
       inception, not an M9 deploy regression — flagged right after M9, filled in now). Tests green.
-- [ ] **M12** — Backoffice UI (staff-facing): real HTML pages under `/admin/*` for the admin/
+- [x] **M12** — Backoffice UI (staff-facing): real HTML pages under `/admin/*` for the admin/
       clinician-only capabilities that already exist as API/fragment endpoints from M2–M6 and M10
       (patient/consultant/attendant/service/package management, session recording, invoicing +
       template editor, prescriptions, reporting dashboards) but — same gap M11 closed for
-      patients — have never had a page shell, only curl/JSON-testable endpoints. **Scoped, not yet
-      started** — see "M12 scope" below and the decision log for the open questions to confirm
-      before build starts.
+      patients — never had a page shell, only curl/JSON-testable endpoints. Tests green.
 
 ---
 
-## M12 scope (Backoffice UI — planned)
+## M12 scope (Backoffice UI — shipped, see decision log below for what changed during the build)
 
 Mirrors M11's approach: new `internal/backoffice` package (`Templates` + `Handler`, no
 repository — pure presentation over existing services), server-rendered Go templates under
@@ -105,6 +103,84 @@ first" pattern from M10/M11):
 
 ## Decision log
 
+- **2026-08-04** (M12): Backoffice UI complete — matches the scope table above exactly, plus one
+  scope addition and one real bug found and fixed while building it.
+  **New `internal/backoffice` package**, structurally identical to `internal/portal` (`Templates`
+  + `Handler`, no repository). Role gating happens *inside* `backofficeHandler` (redirect to
+  `/login` if unauthenticated, a rendered 403 page if the wrong role) rather than via
+  `authRequired`/`RequireRole` at the router — same reasoning M11 used for `portal.Handler`: a
+  page navigation should land somewhere useful, not return a bare 401/403 body. Every page's role
+  gate matches its underlying API route's exactly (no new authorization rules invented) — this
+  surfaced one real cross-role case worth calling out: `/admin/prescriptions` is `clinicianOnly`,
+  so **admin itself gets a 403** there, same as the API — a dedicated test
+  (`admin hits clinician-only prescriptions`) locks this in since it's easy to assume "admin can
+  see everything."
+  **One justified backend change**: `RegisterStaff`'s web-mode HTML fragment now includes
+  `data-user-id="..."` (previously prose-only, no id) — needed so an admin creating a staff
+  account via `/admin/staff/new` can carry that id into the consultant/attendant profile-creation
+  forms that require it. Confirmed no test asserted the fragment's exact prior shape before
+  changing it, same check M11 did before adding `data-scheduled-at` to the booking fragment.
+  **Real bug found by manually testing the login flow, not by `go test`**: `POST /auth/login`'s
+  web-mode redirect was hardcoded to `/dashboard` for every role — unaffected by M12's change to
+  `portal.Handler.Home` (which only handles an *already-logged-in* visit to `/`). A freshly
+  logged-in admin/clinician/attendant was landing on the patient dashboard, which then 403s on its
+  patient-only `GET /patients/me` fragment. Fixed with a `homeRedirectFor(role)` helper mirroring
+  `Home`'s split; `VerifyEmail` keeps its `/dashboard` literal since it's a patient-only flow
+  (staff accounts are created active via `RegisterStaff`, no verification round-trip). Caught this
+  specifically because CLAUDE.md's "test the golden path in a browser" guidance meant actually
+  logging in as admin locally, not just hitting `/admin` with a pre-issued cookie — a scripted
+  integration test alone wouldn't have exercised the real login redirect path for a staff role,
+  since none of M12's own tests happened to check `Location` on a fresh login (fixed: added
+  `TestLogin_RedirectsStaffToAdmin`).
+  **Known, documented UX limitation (not fixed, scope judgment call)**: creating a
+  patient/consultant/attendant profile from the backoffice requires pasting the raw `user_id` of
+  an already-registered account — there's no `GET /users` lookup endpoint to browse/search by
+  role, so admins must first create the account (via `/admin/staff/new`, which now at least
+  surfaces the id per above) or, for patients, ask them to self-register and relay their id.
+  Adding a users-listing endpoint was judged out of scope for a UI-only milestone (it's a new API
+  surface, not a page wrapping an existing one) — flagged here rather than silently built or
+  silently skipped, since it's a real day-to-day friction point if the clinic ever has walk-in
+  patients registered by staff rather than self-registering.
+  **`app.js` form serialization made type-aware** (M11's forms never exercised this — all
+  text/date/email fields): checkboxes now serialize as real JSON booleans (`requires_consultant`,
+  `active`), `<input type="number">` as JSON numbers (`price`, `default_commission`,
+  `commission_override`, ...), `<input type="datetime-local">` converted to a full RFC3339 string
+  via `new Date(...).toISOString()` (`scheduled_at` — the native `datetime-local` value has no
+  seconds/timezone, which Go's `time.Time` JSON unmarshaling rejects), and blank *optional* fields
+  (no `required` attribute) are omitted from the JSON body entirely rather than sent as `""`
+  (matches how a JSON key's absence, not an empty string, is what makes Go's `*T` pointer/slice
+  fields stay `nil`); required fields are guaranteed non-blank by native HTML5 validation before
+  submit ever fires, so this doesn't weaken any existing validation.
+  **New `web/static/js/admin.js`**: (1) clicking a `data-id` list item inside a
+  `[data-admin-resource]` section fetches the full JSON record via `X-Client-Type: mobile` (the
+  existing web-mode HTML fragments only carry an id and one or two display fields — enough for a
+  list, not enough to pre-fill an edit form) and populates the section's `.admin-edit-form`
+  fields, matched by `data-field`; (2) any `<select data-options-from="/services">` is populated
+  from that endpoint's existing JSON list response instead of making the admin paste raw UUIDs for
+  every foreign-key-shaped field (session's `patient_id`/`service_id`/`consultant_id`, a
+  package's `service_id`, etc.) — `data-options-key`/`data-options-label` name the envelope key
+  and display field; (3) the consultant per-service commission override sub-section uses htmx's
+  own JS API (`htmx.ajax`) to reuse the existing `GET /consultants/{id}/service-commissions` HTML
+  fragment for a dynamically-selected consultant id, rather than hand-rolling a client-side
+  renderer, since `hx-get`'s URL is normally static.
+  11 new integration tests in `backoffice_test.go` cover: unauthenticated redirect to `/login` on
+  every `/admin/*` page, wrong role gets a rendered 403 (including the admin-vs-prescriptions case
+  above), correct role renders 200 with expected content for admin/clinician/attendant, the
+  register-staff fragment's `data-user-id`, and both halves of the staff-redirect fix
+  (`portal.Handler.Home` and `POST /auth/login`). Manually verified beyond `go test` (no browser
+  automation tool available in this session, so this was curl-driven, replicating the exact
+  request shapes `app.js`/`admin.js` produce — JSON booleans/numbers/ISO datetimes,
+  `X-Client-Type: mobile` fetches, dynamic PUT/PATCH URLs — rather than actually rendering and
+  clicking through the pages in a real browser, unlike M11's Playwright-free-but-still-manual
+  browser pass; noting this gap explicitly rather than claiming full UI verification): created a
+  clinician and attendant staff account end-to-end (id surfaced in the fragment), created a
+  consultant and attendant profile linked to those accounts, created a service, set a per-service
+  commission override and confirmed its list fragment, recorded a session (confirming the
+  datetime-local → RFC3339 conversion and commission-override resolution both worked), generated
+  an invoice and downloaded its PDF, set an invoice template placeholder via the dynamic PUT URL,
+  created a package and assigned it to a patient, authored a prescription as the clinician and
+  downloaded its PDF, fetched a report's chart fragment, and confirmed the 403 forbidden page
+  renders correctly for a clinician hitting an admin-only page. `go test ./...` green throughout.
 - **2026-08-04** (Resend domain verified): `clinic.ricksonmenezes.com` is now a verified sending
   domain in Resend (user added it under Resend → Domains and added the DNS records to Cloudflare).
   Confirmed working end-to-end: registering a real patient on prod
