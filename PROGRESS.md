@@ -45,6 +45,10 @@ instructions.
 - [x] **M10** — Reporting & analytics (Phase 2): four aggregate report endpoints (revenue,
       commission payouts, service popularity, booking volume), admin-only, JSON for mobile and a
       Chart.js-rendered fragment for web. Tests green.
+- [x] **M11** — Patient portal UI: real HTML pages (`/`, `/register`, `/login`, `/check-email`,
+      `/forgot-password`, `/reset-password`, `/dashboard`, `/book`) closing the gap where Module 8
+      had only API/fragment endpoints and nothing mounted at `GET /` (a 404 since project
+      inception, not an M9 deploy regression — flagged right after M9, filled in now). Tests green.
 
 ---
 
@@ -65,6 +69,63 @@ instructions.
 
 ## Decision log
 
+- **2026-08-04** (M11): Patient portal UI complete — closes the `GET /` 404 flagged right after
+  M9's deploy. **Scope confirmed with the user first**: full HTMX-style portal (real pages, not
+  just a landing stub), reusing every existing API/fragment endpoint rather than building a
+  second copy of any validation/authorization logic. New `internal/portal` package (`Templates`,
+  `Handler`, no repository — pages are pure presentation). New `web/templates/*.html` (layout +
+  8 pages) and `web/static/{css,js}` (real files replacing the `.gitkeep` placeholders that had
+  sat empty since M0).
+  **Per-page template sets, not one shared set**: `html/template` silently lets the last-parsed
+  file's `{{define "content"}}` win when multiple files in one set define the same name, so each
+  page is parsed as its own `layout.html` + `{name}.html` pair — 8 independent `*template.Template`
+  values, not 8 files parsed together.
+  **`GET /{$}` not `GET /`**: a bare `"/"` pattern is a subtree match in Go's `net/http.ServeMux`
+  and silently catches every otherwise-unmatched path, which would have turned real 404s (typos,
+  dead links) into a silently-served home page. `{$}` (Go 1.22+) matches only the exact root.
+  Confirmed by a dedicated test (`TestPortalUnmatchedPath_Returns404NotHomePage`) — this was
+  checked, not assumed.
+  **No HTMX for POST forms**: HTMX's default form encoding is
+  `application/x-www-form-urlencoded`, but every existing handler decodes `application/json`
+  (`json.NewDecoder(r.Body).Decode`) — a real mismatch, not a style choice. Rather than touch 8
+  already-tested handlers' body-decoding to also accept form-encoding (or lean on an HTMX
+  extension whose redirect-interop behavior wasn't fully verifiable here), forms use a ~40-line
+  vanilla-JS helper (`web/static/js/app.js`) that serializes to JSON and `fetch()`s the existing
+  endpoint unchanged. Response handling is one rule for every form: `response.redirected` →
+  `window.location = response.url` (real navigation, since `fetch` follows redirects
+  transparently and exposes the final URL); not redirected → swap the response HTML into the
+  form's `data-target` (covers both the success-fragment and error-fragment cases already
+  returned by the existing handlers, uniformly). `GET`-triggered fragments (services list,
+  availability, bookings list, own profile) use real HTMX (`hx-get`/`hx-trigger="load"`) — no
+  request body, no encoding mismatch, HTMX's native strength.
+  **Auth-state check duplicated, not reused, from `middleware.Auth`**: page routes need to
+  *redirect* an unauthenticated visitor to `/login`; the JSON API's `middleware.Auth` returns a
+  plain-text 401 by design (correct for an API, wrong for a page a browser just navigated to). A
+  small `portal.Handler.authenticated` reads the same `access_token` cookie and calls the same
+  `auth.ParseAccessToken`, just returning a bool instead of erroring — kept local to `internal/
+  portal` rather than generalizing `middleware.Auth` itself, since the JSON API's 401 behavior is
+  correct and shouldn't change.
+  **One small existing-fragment change**: `booking.Handler.Availability`'s HTML fragment gained a
+  `data-scheduled-at="..."` attribute per `<li>` (the RFC3339 timestamp was already in the text
+  content, but not machine-readable) — needed so the booking page's JS can read which slot was
+  clicked without parsing rendered text. Confirmed no existing test asserts the fragment's exact
+  shape before making this change. `templatesDir`/`staticDir` are passed into `server.NewRouter`
+  as parameters (now `(http.Handler, error)`, was `http.Handler`, since loading templates can fail)
+  rather than hardcoded, matching `store.RunMigrations`' existing `dir` parameter — `cmd/server/
+  main.go` and the integration test harness run from different working directories and need
+  different relative paths to the same repo-root `web/` directory. No production/deploy changes
+  needed beyond what already exists: `web/` is a normal tracked directory under the repo root, so
+  the existing `git pull && systemctl restart` deploy one-liner picks it up like any other file.
+  9 new integration tests in `portal_test.go` cover: unauthenticated `/` shows marketing content,
+  authenticated `/` redirects to `/dashboard`, unauthenticated `/dashboard` and `/book` redirect
+  to `/login`, authenticated versions render 200, every public form page renders its expected
+  content, the reset-password token is echoed into its hidden field, `/static/` actually serves a
+  file, and the `{$}`-vs-`/` 404 behavior above. Beyond `go test` (which can't execute client-side
+  JS or render a real DOM): ran the local dev server and exercised the exact request shapes the
+  browser JS produces — JSON POST with no `X-Client-Type` header, cookie-jar login, dashboard
+  fragment loads, service/availability browsing (confirming the new `data-scheduled-at`
+  attribute), a real booking creation, and logout — every response's redirect-vs-fragment shape
+  matched what `app.js`/`book.js` assume. `go test ./...` green.
 - **2026-08-04** (M10): Reporting & analytics complete — the first Phase 2 milestone. New
   `internal/report` package (`Repository`, `Service`, `Handler`, no new model/domain entity, no
   new migration — pure read-aggregation over `invoices`, `session_commission_snapshot`, and
