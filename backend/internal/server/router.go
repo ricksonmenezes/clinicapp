@@ -23,6 +23,7 @@ import (
 	"clinicapp/backend/internal/patient"
 	"clinicapp/backend/internal/prescription"
 	"clinicapp/backend/internal/promo"
+	"clinicapp/backend/internal/report"
 	"clinicapp/backend/internal/service"
 	"clinicapp/backend/internal/session"
 	"clinicapp/backend/internal/sms"
@@ -94,6 +95,8 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer, s sms.Se
 	bookingHandler := booking.NewHandler(booking.NewService(
 		sessionSvc, sessionRepo, serviceRepo, consultantRepo, patientRepo, authRepo, m, s,
 	))
+
+	reportHandler := report.NewHandler(report.NewService(report.NewRepository(pool)))
 
 	registerLimiter := middleware.NewRateLimiter(3, time.Minute)
 	loginLimiter := middleware.NewRateLimiter(5, time.Minute)
@@ -196,6 +199,16 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer, s sms.Se
 	mux.Handle("POST /bookings", authRequired(patientOnly(emailGuardrail.Middleware(http.HandlerFunc(bookingHandler.Create)))))
 	mux.Handle("GET /bookings", authRequired(patientOnly(http.HandlerFunc(bookingHandler.List))))
 	mux.Handle("GET /bookings/{id}", authRequired(patientOnly(http.HandlerFunc(bookingHandler.Get))))
+
+	// Reporting & analytics (PLAN.md Phase 2). All admin-only, same precedent
+	// as GET /consultants/{id}/commission-history — these are aggregate
+	// financial/business reports (revenue, commission payouts), not
+	// per-record operational data, so they don't get the admin+clinician
+	// access sessions/invoices/patient-packages have.
+	mux.Handle("GET /reports/revenue", authRequired(adminOnly(http.HandlerFunc(reportHandler.Revenue))))
+	mux.Handle("GET /reports/commission-payouts", authRequired(adminOnly(http.HandlerFunc(reportHandler.CommissionPayouts))))
+	mux.Handle("GET /reports/service-popularity", authRequired(adminOnly(http.HandlerFunc(reportHandler.ServicePopularity))))
+	mux.Handle("GET /reports/bookings", authRequired(adminOnly(http.HandlerFunc(reportHandler.BookingVolume))))
 
 	return middleware.ClientType(mux)
 }
