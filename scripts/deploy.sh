@@ -7,4 +7,8 @@ set -euo pipefail
 
 HOST="${1:?usage: scripts/deploy.sh <ssh-host>}"
 
-ssh "$HOST" 'cd /opt/clinicapp && git pull && cd backend && go build -o bin/clinicapp-server ./cmd/server && systemctl restart clinicapp'
+# git pull and the build run as the clinicapp system user, which owns
+# /opt/clinicapp — running them as root (the ssh user) fails with git's
+# "detected dubious ownership" safe.directory check, since root != the
+# repo's owner. Only the systemd restart needs root.
+ssh "$HOST" 'su clinicapp -s /bin/bash -c "cd /opt/clinicapp && git pull && cd backend && go build -o bin/clinicapp-server ./cmd/server" && systemctl restart clinicapp'

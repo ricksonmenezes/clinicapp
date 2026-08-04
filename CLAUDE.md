@@ -159,8 +159,11 @@ develop or debug on it directly (see Hard Constraints below).
 
 **Deploy one-liner** (after pushing to GitHub):
 ```bash
-ssh netcup 'cd /opt/clinicapp && git pull && cd backend && go build -o bin/clinicapp-server ./cmd/server && systemctl restart clinicapp'
+ssh netcup 'su clinicapp -s /bin/bash -c "cd /opt/clinicapp && git pull && cd backend && go build -o bin/clinicapp-server ./cmd/server" && systemctl restart clinicapp'
 ```
+`git pull`/`go build` run as the `clinicapp` system user (which owns `/opt/clinicapp`), not as
+root (the ssh user) — running them as root fails with git's "detected dubious ownership" check.
+Only the final `systemctl restart` needs root.
 
 Then verify:
 ```bash

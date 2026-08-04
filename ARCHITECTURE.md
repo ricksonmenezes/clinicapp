@@ -65,6 +65,18 @@ existing multi-site Caddyfile (with a timestamped backup first), not generated f
 repo's template. This was discoverable in five minutes, but nothing in the plan flagged "check
 for existing occupants of the target server" as a step.
 
+- **2026-08-04, M11 deploy**: the documented deploy one-liner (`ssh netcup 'cd /opt/clinicapp &&
+  git pull && ...'`) failed with git's "detected dubious ownership in repository" error — the ssh
+  user is `root`, but `/opt/clinicapp` is owned by the `clinicapp` system user (M9's
+  least-privilege choice), and modern git refuses to operate on a repo it doesn't own unless
+  that's explicitly allow-listed. Fixed by running `git pull`/`go build` as
+  `su clinicapp -s /bin/bash -c "..."` instead of adding a global
+  `git config --add safe.directory` exception for root — keeps root from ever needing blanket
+  trust of a directory it doesn't own, consistent with why that directory was given its own
+  system user in the first place. `CLAUDE.md` §7 and `scripts/deploy.sh` updated to match; this
+  would have bitten any future deploy, not just this one, so worth checking on any future project
+  where the deploy user (ssh login) and the app's runtime/repo-owning user differ.
+
 ## 4. Sending-domain / deliverability readiness
 
 **Checklist**: for any transactional email or SMS that's blocking (i.e., the request fails if the
