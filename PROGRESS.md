@@ -49,6 +49,48 @@ instructions.
       `/forgot-password`, `/reset-password`, `/dashboard`, `/book`) closing the gap where Module 8
       had only API/fragment endpoints and nothing mounted at `GET /` (a 404 since project
       inception, not an M9 deploy regression — flagged right after M9, filled in now). Tests green.
+- [ ] **M12** — Backoffice UI (staff-facing): real HTML pages under `/admin/*` for the admin/
+      clinician-only capabilities that already exist as API/fragment endpoints from M2–M6 and M10
+      (patient/consultant/attendant/service/package management, session recording, invoicing +
+      template editor, prescriptions, reporting dashboards) but — same gap M11 closed for
+      patients — have never had a page shell, only curl/JSON-testable endpoints. **Scoped, not yet
+      started** — see "M12 scope" below and the decision log for the open questions to confirm
+      before build starts.
+
+---
+
+## M12 scope (Backoffice UI — planned)
+
+Mirrors M11's approach: new `internal/backoffice` package (`Templates` + `Handler`, no
+repository — pure presentation over existing services), server-rendered Go templates under
+`web/templates/admin/`, HTMX for GET-triggered fragments, the existing `web/static/js/app.js`
+JSON-fetch helper reused as-is for POST forms (same redirect-vs-fragment response shape every
+existing handler already returns — no backend changes expected). Role-gating on every page
+matches its underlying API route exactly (no new authorization rules invented):
+
+| Page(s) | Backing endpoint(s) | Role |
+|---|---|---|
+| `/admin` (dashboard/nav hub) | — | admin, clinician, attendant |
+| `/admin/patients`, `/admin/patients/{id}` | `GET/POST /patients`, `GET/PATCH /patients/{id}` | admin+clinician read, admin write |
+| `/admin/consultants` (+ commission config) | `GET/POST/PATCH /consultants(/{id})`, `/consultants/{id}/service-commissions`, `/consultants/{id}/commission-history` | admin only |
+| `/admin/attendants` | `GET/POST/PATCH /attendants(/{id})` | admin only |
+| `/admin/services` | `GET/POST /services` | any staff read, admin write |
+| `/admin/packages`, `/admin/patient-packages` | `GET/POST /packages`, `/patient-packages` | admin write, admin+clinician read |
+| `/admin/sessions` | `GET/POST /sessions`, `/sessions/{id}` | admin+clinician |
+| `/admin/invoices`, `/admin/invoice-template` | `POST /invoices`, `/invoices/{id}/pdf`, placeholder endpoints | admin write, admin+clinician read PDF |
+| `/admin/prescriptions` | `POST /prescriptions`, `/prescriptions/{id}/pdf` | clinician only |
+| `/admin/reports` | `GET /reports/*` (hosts M10's existing Chart.js fragments) | admin only |
+| `/admin/staff/new` | `POST /auth/register-staff` | admin only — the one admin capability with **zero UI today**, curl-only |
+
+**Confirmed before starting the build** (per this project's standing "clarify vague/large scope
+first" pattern from M10/M11):
+1. **Shared `/login`, role-based redirect** — reuses the existing `/login` page and cookie/JWT
+   mechanism as-is, no separate `/admin/login`. Only the post-login/home-page redirect branches by
+   role (patient → `/dashboard`, staff → `/admin`). Requires adding a `Role` field to
+   `portal.PageData` (currently only `Authenticated bool`) and updating `Home`'s
+   redirect-if-authenticated branch.
+2. **Built as one M12 pass**, not split into M12a/M12b — matches CLAUDE.md's default of building
+   a whole milestone in one pass, committing incrementally as pieces land.
 
 ---
 
