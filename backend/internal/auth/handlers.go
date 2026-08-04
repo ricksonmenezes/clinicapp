@@ -144,7 +144,21 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.respondWithTokens(w, r, http.StatusOK, user, pair, "/dashboard")
+	h.respondWithTokens(w, r, http.StatusOK, user, pair, homeRedirectFor(user.Role))
+}
+
+// homeRedirectFor picks the web-mode post-login landing page: patients go
+// to their booking dashboard, staff (clinician/attendant/admin) go to the
+// backoffice — same split portal.Handler.Home uses for an
+// already-authenticated visit to "/". VerifyEmail doesn't use this — it's
+// a patient-only flow (staff accounts are created active via
+// RegisterStaff, no verification round-trip), so it keeps its "/dashboard"
+// literal.
+func homeRedirectFor(role string) string {
+	if role == RolePatient {
+		return "/dashboard"
+	}
+	return "/admin"
 }
 
 type refreshRequest struct {

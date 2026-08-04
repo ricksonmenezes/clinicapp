@@ -232,3 +232,23 @@ func TestPortalHome_StaffRedirectsToAdmin(t *testing.T) {
 		t.Fatalf("staff get /: expected redirect to /admin, got %q", loc)
 	}
 }
+
+// TestLogin_RedirectsStaffToAdmin locks in the fix alongside portal.Home's
+// redirect: POST /auth/login's own web-mode redirect was previously
+// hardcoded to /dashboard for every role, which sent a freshly-logged-in
+// admin/clinician/attendant to the patient dashboard (which then 403s on
+// its patient-only GET /patients/me fragment) instead of the backoffice.
+func TestLogin_RedirectsStaffToAdmin(t *testing.T) {
+	ts, _, _ := NewTestServer(t)
+	client := NoRedirectClient(t)
+
+	resp := PostJSONClient(t, client, ts.URL, "/auth/login", "web", map[string]string{
+		"email": TestAdminEmail, "password": TestAdminPassword,
+	}, nil)
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("admin login: want 303, got %d", resp.StatusCode)
+	}
+	if loc := resp.Header.Get("Location"); loc != "/admin" {
+		t.Fatalf("admin login: expected redirect to /admin, got %q", loc)
+	}
+}
