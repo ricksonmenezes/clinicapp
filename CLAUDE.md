@@ -254,6 +254,15 @@ the pre-push hook is a convenience to catch failures before they hit CI.
 - Commit incrementally as pieces land and report back once the whole milestone is done.
 - Only stop mid-milestone if genuinely blocked: missing decision, missing credential, or a failing test that needs a design call.
 - If any single approach fails 3–5 times in a row, stop and report back: explain what was tried, what's failing, and ask whether a different approach or manual intervention is needed.
+- Whenever an unclear point forces a real architectural/technical design decision — a third-party
+  provider's exact endpoint or auth shape, a sending-domain choice, a secrets-handling approach, a
+  port/infra conflict discovered on a deploy target, a capacity/authorship rule the plan left
+  implicit, anything that took asking the user or a judgment call to resolve — record it as a
+  dated technical note in `ARCHITECTURE.md`, not just in `PROGRESS.md`'s decision log. The point
+  is for `ARCHITECTURE.md` to accumulate into a standing checklist so the *next* project's
+  planning docs address these categories from the outset instead of surfacing as incremental
+  interruptions mid-build. `PROGRESS.md` stays the project-specific "what happened and why";
+  `ARCHITECTURE.md` is the reusable "what to decide up front next time."
 
 ### API design
 - **Do not** add a separate mobile vs. web API surface. One endpoint, one handler, the `renderer` package dispatches the response format.

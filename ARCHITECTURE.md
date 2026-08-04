@@ -7,6 +7,13 @@
 > the same categories of question don't have to interrupt a build again. Each category below is
 > written generically first (the checklist item), then grounded with what actually happened here
 > (the concrete example) so it's not abstract advice.
+>
+> **Living document**: per `CLAUDE.md`'s Workflow constraints, any future architectural/technical
+> design decision forced by something unclear in the plan (provider specifics, secrets handling,
+> deploy-target infra, sending-domain readiness, implicit business logic, etc.) gets added here as
+> a dated note when it happens — not just recorded in `PROGRESS.md`. `PROGRESS.md` is this
+> project's "what happened and why"; this file is the reusable "what to decide up front next
+> time," and it keeps growing as long as this project is under active development.
 
 ---
 
