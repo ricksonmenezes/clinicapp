@@ -1,0 +1,25 @@
+{{define "content"}}
+<section>
+  <h1>Reports</h1>
+</section>
+
+<section class="card">
+  <h2>Revenue over time</h2>
+  <div hx-get="/reports/revenue" hx-trigger="load" hx-swap="innerHTML">Loading…</div>
+</section>
+
+<section class="card">
+  <h2>Commission payouts per consultant</h2>
+  <div hx-get="/reports/commission-payouts" hx-trigger="load" hx-swap="innerHTML">Loading…</div>
+</section>
+
+<section class="card">
+  <h2>Service popularity</h2>
+  <div hx-get="/reports/service-popularity" hx-trigger="load" hx-swap="innerHTML">Loading…</div>
+</section>
+
+<section class="card">
+  <h2>Booking volume</h2>
+  <div hx-get="/reports/bookings" hx-trigger="load" hx-swap="innerHTML">Loading…</div>
+</section>
+{{end}}

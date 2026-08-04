@@ -1,0 +1,32 @@
+{{define "content"}}
+<section>
+  <h1>Backoffice</h1>
+  <p>Signed in as <strong>{{.Role}}</strong>.</p>
+</section>
+
+<section class="card">
+  <h2>Patient care</h2>
+  <p><a class="button" href="/admin/patients">Patients</a></p>
+  <p><a class="button" href="/admin/sessions">Sessions</a></p>
+  {{if eq .Role "clinician"}}
+  <p><a class="button" href="/admin/prescriptions">Prescriptions</a></p>
+  {{end}}
+</section>
+
+<section class="card">
+  <h2>Billing</h2>
+  <p><a class="button" href="/admin/packages">Packages</a></p>
+  <p><a class="button" href="/admin/invoices">Invoices</a></p>
+</section>
+
+<section class="card">
+  <h2>Clinic setup</h2>
+  <p><a class="button" href="/admin/services">Services</a></p>
+  {{if eq .Role "admin"}}
+  <p><a class="button" href="/admin/consultants">Consultants</a></p>
+  <p><a class="button" href="/admin/attendants">Attendants</a></p>
+  <p><a class="button" href="/admin/staff/new">New staff account</a></p>
+  <p><a class="button" href="/admin/reports">Reports</a></p>
+  {{end}}
+</section>
+{{end}}

@@ -1,0 +1,55 @@
+{{define "content"}}
+<section>
+  <h1>Consultants</h1>
+</section>
+
+<section class="card" data-admin-resource="consultants">
+  <h2>All consultants</h2>
+  <ul class="admin-list" hx-get="/consultants" hx-trigger="load" hx-swap="innerHTML">Loading…</ul>
+  <p class="hint">Click a consultant to edit their profile and manage per-service commission overrides.</p>
+
+  <h3>Create consultant profile</h3>
+  <p class="hint">Requires the user_id of a clinician account — create one first under
+    <a href="/admin/staff/new">New staff account</a>.</p>
+  <div id="consultant-create-result"></div>
+  <form method="post" action="/consultants" data-json data-target="#consultant-create-result">
+    <label>User ID
+      <input type="text" name="user_id" required>
+    </label>
+    <label>Full name
+      <input type="text" name="full_name" required>
+    </label>
+    <label>Default commission (%)
+      <input type="number" step="0.01" min="0" max="100" name="default_commission" required>
+    </label>
+    <button type="submit">Create</button>
+  </form>
+
+  <form class="admin-edit-form" method="PATCH" action="" data-json data-target="#consultant-edit-result" hidden>
+    <h3>Edit consultant</h3>
+    <div id="consultant-edit-result"></div>
+    <label>Full name
+      <input type="text" name="full_name" data-field="full_name" required>
+    </label>
+    <label>Default commission (%)
+      <input type="number" step="0.01" min="0" max="100" name="default_commission" data-field="default_commission" required>
+    </label>
+    <button type="submit">Save changes</button>
+  </form>
+</section>
+
+<section class="card" id="commission-overrides" hidden>
+  <h2>Per-service commission overrides — <span data-consultant-label></span></h2>
+  <ul class="admin-list"></ul>
+  <div id="commission-override-result"></div>
+  <form method="post" action="" data-json data-target="#commission-override-result">
+    <label>Service
+      <select name="service_id" data-options-from="/services" data-options-key="services" required></select>
+    </label>
+    <label>Commission (%)
+      <input type="number" step="0.01" min="0" max="100" name="commission" required>
+    </label>
+    <button type="submit">Set override</button>
+  </form>
+</section>
+{{end}}

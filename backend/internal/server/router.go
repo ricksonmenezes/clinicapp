@@ -8,12 +8,14 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"path/filepath"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"clinicapp/backend/internal/attendant"
 	"clinicapp/backend/internal/auth"
+	"clinicapp/backend/internal/backoffice"
 	"clinicapp/backend/internal/booking"
 	"clinicapp/backend/internal/config"
 	"clinicapp/backend/internal/consultant"
@@ -110,6 +112,12 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer, s sms.Se
 		return nil, err
 	}
 	portalHandler := portal.NewHandler(portalTemplates, cfg.JWTSecret)
+
+	backofficeTemplates, err := backoffice.LoadTemplates(filepath.Join(templatesDir, "admin"))
+	if err != nil {
+		return nil, err
+	}
+	backofficeHandler := backoffice.NewHandler(backofficeTemplates, cfg.JWTSecret)
 
 	registerLimiter := middleware.NewRateLimiter(3, time.Minute)
 	loginLimiter := middleware.NewRateLimiter(5, time.Minute)
@@ -237,6 +245,24 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer, s sms.Se
 	mux.HandleFunc("GET /reset-password", portalHandler.ResetPasswordPage)
 	mux.HandleFunc("GET /dashboard", portalHandler.Dashboard)
 	mux.HandleFunc("GET /book", portalHandler.BookPage)
+
+	// Backoffice (staff-facing) pages (M12) — same "page shell around the
+	// existing API/fragment endpoints" philosophy as the patient portal
+	// above, just for admin/clinician/attendant roles. Role gating happens
+	// inside backofficeHandler itself (redirect to /login, or a rendered
+	// 403 page), not via authRequired/RequireRole, since these are page
+	// navigations, not JSON API calls.
+	mux.HandleFunc("GET /admin", backofficeHandler.Dashboard)
+	mux.HandleFunc("GET /admin/patients", backofficeHandler.Patients)
+	mux.HandleFunc("GET /admin/consultants", backofficeHandler.Consultants)
+	mux.HandleFunc("GET /admin/attendants", backofficeHandler.Attendants)
+	mux.HandleFunc("GET /admin/services", backofficeHandler.Services)
+	mux.HandleFunc("GET /admin/packages", backofficeHandler.Packages)
+	mux.HandleFunc("GET /admin/sessions", backofficeHandler.Sessions)
+	mux.HandleFunc("GET /admin/invoices", backofficeHandler.Invoices)
+	mux.HandleFunc("GET /admin/prescriptions", backofficeHandler.Prescriptions)
+	mux.HandleFunc("GET /admin/reports", backofficeHandler.Reports)
+	mux.HandleFunc("GET /admin/staff/new", backofficeHandler.StaffNew)
 
 	return middleware.ClientType(mux), nil
 }

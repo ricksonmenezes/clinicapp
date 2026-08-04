@@ -42,10 +42,13 @@ func LoadTemplates(dir string) (*Templates, error) {
 
 // PageData is what every layout.html + content template pair renders with.
 // Token is only used by reset-password (the query-string token, echoed into
-// a hidden field); every other page ignores it.
+// a hidden field); every other page ignores it. Role is only populated when
+// Authenticated is true — used by Home to pick a redirect target (patients
+// land on /dashboard, staff on /admin).
 type PageData struct {
 	Title         string
 	Authenticated bool
+	Role          string
 	Token         string
 }
 

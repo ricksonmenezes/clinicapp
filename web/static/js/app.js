@@ -20,9 +20,39 @@ document.addEventListener('submit', function (event) {
   var target = targetSelector ? document.querySelector(targetSelector) : null;
   var submitButton = form.querySelector('button[type="submit"]');
 
+  // Built from form.elements rather than FormData, since the backoffice
+  // forms (M12) need type-aware conversion FormData can't do:
+  //   - checkbox -> real JSON boolean (FormData omits unchecked boxes
+  //     entirely and gives checked ones the string "on", neither of which
+  //     json.Decode into a Go *bool)
+  //   - number -> real JSON number (a JSON string like "40.5" fails to
+  //     decode into a Go float64 field without a `json:",string"` tag)
+  //   - datetime-local -> a full RFC3339 string (its native value, e.g.
+  //     "2024-01-15T14:30", has no seconds/timezone and isn't valid
+  //     RFC3339, which is what Go's time.Time expects)
+  //   - blank optional fields are omitted entirely rather than sent as ""
+  //     (json.Decode of "" into a Go *T pointer/slice field fails the same
+  //     way); required fields are guaranteed non-blank by native HTML5
+  //     validation before submit ever runs.
   var data = {};
-  new FormData(form).forEach(function (value, key) {
-    data[key] = value;
+  Array.prototype.forEach.call(form.elements, function (el) {
+    if (!el.name) return;
+    if (el.type === 'checkbox') {
+      data[el.name] = el.checked;
+      return;
+    }
+    if (el.type === 'radio') {
+      if (el.checked) data[el.name] = el.value;
+      return;
+    }
+    if (el.value === '' && !el.required) return;
+    if (el.type === 'number') {
+      data[el.name] = Number(el.value);
+    } else if (el.type === 'datetime-local') {
+      data[el.name] = new Date(el.value).toISOString();
+    } else {
+      data[el.name] = el.value;
+    }
   });
 
   if (submitButton) submitButton.disabled = true;

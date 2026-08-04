@@ -1,0 +1,41 @@
+{{define "content"}}
+<section>
+  <h1>Sessions</h1>
+</section>
+
+<section class="card">
+  <h2>All sessions</h2>
+  <ul class="admin-list" hx-get="/sessions" hx-trigger="load" hx-swap="innerHTML">Loading…</ul>
+</section>
+
+<section class="card">
+  <h2>Record a session</h2>
+  <p class="hint">Attendant assignment isn't supported from this form yet — use the API directly
+    for attendant-only sessions that need a roster.</p>
+  <div id="session-create-result"></div>
+  <form method="post" action="/sessions" data-json data-target="#session-create-result">
+    <label>Patient
+      <select name="patient_id" data-options-from="/patients" data-options-key="patients" data-options-label="full_name" required></select>
+    </label>
+    <label>Service
+      <select name="service_id" data-options-from="/services" data-options-key="services" required></select>
+    </label>
+    <label>Consultant (leave blank for attendant-only services)
+      <select name="consultant_id" data-options-from="/consultants" data-options-key="consultants" data-options-label="full_name"></select>
+    </label>
+    <label>Patient package ID (optional, if this session draws from a package)
+      <input type="text" name="patient_package_id">
+    </label>
+    <label>Scheduled at
+      <input type="datetime-local" name="scheduled_at" required>
+    </label>
+    <label>Commission override % (optional, overrides the service/consultant default for this session only)
+      <input type="number" step="0.01" min="0" max="100" name="commission_override">
+    </label>
+    <label>Notes
+      <textarea name="notes"></textarea>
+    </label>
+    <button type="submit">Record session</button>
+  </form>
+</section>
+{{end}}

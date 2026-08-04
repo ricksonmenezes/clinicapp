@@ -15,6 +15,20 @@ func NewHandler(tmpl *Templates, jwtSecret string) *Handler {
 	return &Handler{tmpl: tmpl, jwtSecret: jwtSecret}
 }
 
+// claims reads and validates the access_token cookie, returning the parsed
+// claims (with Role) when present, or (nil, false) otherwise.
+func (h *Handler) claims(r *http.Request) (*auth.AccessClaims, bool) {
+	cookie, err := r.Cookie("access_token")
+	if err != nil {
+		return nil, false
+	}
+	claims, err := auth.ParseAccessToken(h.jwtSecret, cookie.Value)
+	if err != nil {
+		return nil, false
+	}
+	return claims, true
+}
+
 // authenticated reports whether the request carries a valid access_token
 // cookie. Used two ways: to vary every page's nav (logged-in links vs.
 // login/register), and to gate Dashboard/BookPage — which redirect to
@@ -22,18 +36,22 @@ func NewHandler(tmpl *Templates, jwtSecret string) *Handler {
 // 401), since a browser hitting these page URLs directly should land
 // somewhere useful, not a bare error.
 func (h *Handler) authenticated(r *http.Request) bool {
-	cookie, err := r.Cookie("access_token")
-	if err != nil {
-		return false
-	}
-	_, err = auth.ParseAccessToken(h.jwtSecret, cookie.Value)
-	return err == nil
+	_, ok := h.claims(r)
+	return ok
 }
 
+// Home sends an already-logged-in visitor straight to the page that matters
+// for their role, rather than showing the marketing page again: patients go
+// to their booking dashboard, staff (clinician/attendant/admin) go to the
+// backoffice.
 func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
-	authed := h.authenticated(r)
+	claims, authed := h.claims(r)
 	if authed {
-		http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
+		if claims.Role == auth.RolePatient {
+			http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
+		} else {
+			http.Redirect(w, r, "/admin", http.StatusSeeOther)
+		}
 		return
 	}
 	h.tmpl.Render(w, http.StatusOK, "home", PageData{Title: "Welcome", Authenticated: authed})

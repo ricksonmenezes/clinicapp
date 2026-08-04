@@ -87,7 +87,7 @@ func (h *Handler) RegisterStaff(w http.ResponseWriter, r *http.Request) {
 			"role":   user.Role,
 			"status": user.Status,
 		},
-		HTML: fmt.Sprintf(`<p>Staff account created for %s.</p>`, user.Email),
+		HTML: fmt.Sprintf(`<p data-user-id="%s">Staff account created for %s (id: %s).</p>`, user.ID, user.Email, user.ID),
 	})
 }
 

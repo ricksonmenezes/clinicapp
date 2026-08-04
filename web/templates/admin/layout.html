@@ -1,0 +1,42 @@
+{{define "base"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} · clinicapp backoffice</title>
+<link rel="stylesheet" href="/static/css/app.css">
+<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+<script src="/static/js/app.js"></script>
+<script src="/static/js/admin.js"></script>
+</head>
+<body>
+<header class="site-header">
+  <nav>
+    <a class="brand" href="/admin">clinicapp backoffice</a>
+    <a href="/admin/patients">Patients</a>
+    {{if eq .Role "admin"}}
+      <a href="/admin/consultants">Consultants</a>
+      <a href="/admin/attendants">Attendants</a>
+    {{end}}
+    <a href="/admin/services">Services</a>
+    <a href="/admin/packages">Packages</a>
+    <a href="/admin/sessions">Sessions</a>
+    <a href="/admin/invoices">Invoices</a>
+    {{if eq .Role "clinician"}}
+      <a href="/admin/prescriptions">Prescriptions</a>
+    {{end}}
+    {{if eq .Role "admin"}}
+      <a href="/admin/reports">Reports</a>
+      <a href="/admin/staff/new">New staff</a>
+    {{end}}
+    <form class="nav-logout" method="post" action="/auth/logout">
+      <button type="submit">Log out</button>
+    </form>
+  </nav>
+</header>
+<main>
+{{template "content" .}}
+</main>
+</body>
+</html>
+{{end}}

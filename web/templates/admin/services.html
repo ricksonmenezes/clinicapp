@@ -1,0 +1,48 @@
+{{define "content"}}
+<section>
+  <h1>Services</h1>
+</section>
+
+<section class="card" data-admin-resource="services">
+  <h2>All services</h2>
+  <ul class="admin-list" hx-get="/services" hx-trigger="load" hx-swap="innerHTML">Loading…</ul>
+
+  {{if eq .Role "admin"}}
+  <p class="hint">Click a service to edit it.</p>
+
+  <h3>Create service</h3>
+  <div id="service-create-result"></div>
+  <form method="post" action="/services" data-json data-target="#service-create-result">
+    <label>Name
+      <input type="text" name="name" required>
+    </label>
+    <label>Description
+      <textarea name="description"></textarea>
+    </label>
+    <label>Price
+      <input type="number" step="0.01" min="0" name="price" required>
+    </label>
+    <label><input type="checkbox" name="requires_consultant" checked> Requires a consultant</label>
+    <label><input type="checkbox" name="active" checked> Active</label>
+    <button type="submit">Create</button>
+  </form>
+
+  <form class="admin-edit-form" method="PATCH" action="" data-json data-target="#service-edit-result" hidden>
+    <h3>Edit service</h3>
+    <div id="service-edit-result"></div>
+    <label>Name
+      <input type="text" name="name" data-field="name" required>
+    </label>
+    <label>Description
+      <textarea name="description" data-field="description"></textarea>
+    </label>
+    <label>Price
+      <input type="number" step="0.01" min="0" name="price" data-field="price" required>
+    </label>
+    <label><input type="checkbox" name="requires_consultant" data-field="requires_consultant"> Requires a consultant</label>
+    <label><input type="checkbox" name="active" data-field="active"> Active</label>
+    <button type="submit">Save changes</button>
+  </form>
+  {{end}}
+</section>
+{{end}}

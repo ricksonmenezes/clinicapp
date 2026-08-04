@@ -1,0 +1,29 @@
+{{define "content"}}
+<section>
+  <h1>Prescriptions</h1>
+</section>
+
+<section class="card">
+  <h2>Your prescriptions</h2>
+  <ul class="admin-list" hx-get="/prescriptions" hx-trigger="load" hx-swap="innerHTML">Loading…</ul>
+  <p class="hint">Click a prescription's id, then open <code>/prescriptions/&lt;id&gt;/pdf</code> to download it.</p>
+</section>
+
+<section class="card">
+  <h2>Author a prescription</h2>
+  <p class="hint">Issued under your own consultant profile automatically.</p>
+  <div id="prescription-create-result"></div>
+  <form method="post" action="/prescriptions" data-json data-target="#prescription-create-result">
+    <label>Patient
+      <select name="patient_id" data-options-from="/patients" data-options-key="patients" data-options-label="full_name" required></select>
+    </label>
+    <label>Linked session (optional — must belong to the same patient)
+      <select name="session_id" data-options-from="/sessions" data-options-key="sessions" data-options-label="scheduled_at"></select>
+    </label>
+    <label>Content
+      <textarea name="content" required></textarea>
+    </label>
+    <button type="submit">Issue prescription</button>
+  </form>
+</section>
+{{end}}

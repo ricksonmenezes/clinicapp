@@ -1,0 +1,51 @@
+{{define "content"}}
+<section>
+  <h1>Invoices</h1>
+</section>
+
+<section class="card">
+  <h2>All invoices</h2>
+  <ul class="admin-list" hx-get="/invoices" hx-trigger="load" hx-swap="innerHTML">Loading…</ul>
+  <p class="hint">Click an invoice's id, then open <code>/invoices/&lt;id&gt;/pdf</code> to download it.</p>
+</section>
+
+{{if eq .Role "admin"}}
+<section class="card">
+  <h2>Generate invoice for a session</h2>
+  <div id="invoice-session-result"></div>
+  <form method="post" action="/invoices" data-json data-target="#invoice-session-result">
+    <label>Session
+      <select name="session_id" data-options-from="/sessions" data-options-key="sessions" data-options-label="scheduled_at" required></select>
+    </label>
+    <button type="submit">Generate</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Generate invoice for a package purchase</h2>
+  <div id="invoice-package-result"></div>
+  <form method="post" action="/invoices" data-json data-target="#invoice-package-result">
+    <label>Patient package
+      <select name="package_id" data-options-from="/patient-packages" data-options-key="patient_packages" data-options-label="purchased_at" required></select>
+    </label>
+    <button type="submit">Generate</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Invoice template placeholders</h2>
+  <p class="hint">Clinic name, address, footer text etc. shown on every generated invoice PDF.</p>
+  <ul class="admin-list" hx-get="/invoice-template-placeholders" hx-trigger="load" hx-swap="innerHTML">Loading…</ul>
+  <div id="placeholder-result"></div>
+  <form method="PUT" action="" data-json data-target="#placeholder-result" data-action-base="/invoice-template-placeholders/">
+    <label>Key
+      <input type="text" placeholder="e.g. clinic_name" required data-key-param>
+    </label>
+    <label>Value
+      <input type="text" name="value" required>
+    </label>
+    <button type="submit">Set placeholder</button>
+  </form>
+</section>
+{{end}}
+{{end}}

@@ -1,0 +1,54 @@
+{{define "content"}}
+<section>
+  <h1>Patients</h1>
+</section>
+
+<section class="card" data-admin-resource="patients">
+  <h2>All patients</h2>
+  <ul class="admin-list" hx-get="/patients" hx-trigger="load" hx-swap="innerHTML">Loading…</ul>
+  {{if eq .Role "admin"}}<p class="hint">Click a patient to edit their profile.</p>{{end}}
+
+  {{if eq .Role "admin"}}
+  <h3>Create patient profile</h3>
+  <p class="hint">Requires the user_id of an already-registered patient account
+    (the patient self-registers via the public site, or you can find the id via the DB).</p>
+  <div id="patient-create-result"></div>
+  <form method="post" action="/patients" data-json data-target="#patient-create-result">
+    <label>User ID
+      <input type="text" name="user_id" required>
+    </label>
+    <label>Full name
+      <input type="text" name="full_name" required>
+    </label>
+    <label>Date of birth
+      <input type="date" name="dob">
+    </label>
+    <label>Phone
+      <input type="tel" name="phone">
+    </label>
+    <label>Notes
+      <textarea name="notes"></textarea>
+    </label>
+    <button type="submit">Create</button>
+  </form>
+
+  <form class="admin-edit-form" method="PATCH" action="" data-json data-target="#patient-edit-result" hidden>
+    <h3>Edit patient</h3>
+    <div id="patient-edit-result"></div>
+    <label>Full name
+      <input type="text" name="full_name" data-field="full_name" required>
+    </label>
+    <label>Date of birth
+      <input type="date" name="dob" data-field="dob">
+    </label>
+    <label>Phone
+      <input type="tel" name="phone" data-field="phone">
+    </label>
+    <label>Notes
+      <textarea name="notes" data-field="notes"></textarea>
+    </label>
+    <button type="submit">Save changes</button>
+  </form>
+  {{end}}
+</section>
+{{end}}

@@ -167,3 +167,50 @@ ul {
   padding: 0.4rem 0;
   border-bottom: 1px solid var(--border);
 }
+
+form textarea,
+form select {
+  display: block;
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
+
+form textarea {
+  min-height: 4rem;
+  resize: vertical;
+}
+
+.admin-list li {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 0.4rem;
+  cursor: pointer;
+}
+
+.admin-list li:hover {
+  border-color: var(--accent);
+}
+
+.admin-edit-form {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--border);
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-top: -0.5rem;
+}
+
+.forbidden {
+  text-align: center;
+  padding: 3rem 1rem;
+}
