@@ -37,13 +37,13 @@ The server starts on `localhost:8080` by default (`PORT` env overrides).
 | Var | Meaning | Local | Prod |
 |---|---|---|---|
 | `APP_ENV` | `local` or `prod` | `local` | `prod` |
-| `PORT` | HTTP listen port | `8080` | `8080` |
-| `DB_DSN` | Postgres connection string | `postgres://...` (local DB) | managed secret |
-| `JWT_SECRET` | HMAC signing key for access tokens | generate locally | managed secret |
+| `PORT` | HTTP listen port | `8080` | `8081` (`8080` is taken by an unrelated service on the netcup box) |
+| `DB_DSN` | Postgres connection string | `postgres://...` (local DB) | `postgres://clinicapp:...@localhost:5432/clinicapp_prod` (managed secret, in `/opt/clinicapp/.env` only) |
+| `JWT_SECRET` | HMAC signing key for access tokens | generate locally | managed secret, in `/opt/clinicapp/.env` only |
 | `JWT_EXPIRY_MINUTES` | Access token TTL | `15` | `15` |
 | `REFRESH_TOKEN_EXPIRY_DAYS` | Refresh token TTL | `30` | `30` |
-| `RESEND_API_KEY` | Resend API key | sandbox key from resend.com | managed secret |
-| `MAIL_FROM` | From address on outbound emails | `onboarding@resend.dev` (Resend sandbox address) | verified domain address, e.g. `noreply@yourclinic.com` |
+| `RESEND_API_KEY` | Resend API key | sandbox key from resend.com | same sandbox key reused for now (see §9) |
+| `MAIL_FROM` | From address on outbound emails | `onboarding@resend.dev` (Resend sandbox address) | `noreply@clinic.ricksonmenezes.com` — **domain not yet verified in Resend, see §7 Outstanding** |
 | `SMS_PROVIDER` | SMS provider name | `philsms` | `philsms` |
 | `SMS_API_KEY` | PhilSMS API key | key from dashboard.philsms.com | managed secret |
 | `SMS_SENDER_ID` | PhilSMS sender name on outbound SMS | `PhilSMS` (platform shared default) | `PhilSMS`, or the clinic's own registered sender ID once obtained |
@@ -144,16 +144,20 @@ Auth tokens:
 
 ## 7. Deployment
 
-**Domain**: `clinic.ricksonmenezes.com` is already pointed at the netcup server's address (DNS
-done). What's still pending is the netcup-side Caddy config to route requests for this subdomain
-to the local backend (`reverse_proxy localhost:8080`) — see the Caddyfile snippet below; land it
-in `deploy/Caddyfile` and apply it on the server when M9 (production deploy) starts.
+**Live**: `https://clinic.ricksonmenezes.com` — deployed to the netcup server (`ssh netcup`) as of
+M9. Runs as systemd unit `clinicapp` under system user `clinicapp`, code at `/opt/clinicapp`.
 
-**SSH**: `ssh <your-server>` (configure in `~/.ssh/config`).
+**Port**: clinicapp listens on **`8081`**, not the `8080` shown in older docs/examples — the
+netcup box already runs an unrelated service (`sanasalinin.service`) bound to `8080`. `PORT=8081`
+is set in the server's `/opt/clinicapp/.env`. If you ever re-provision from scratch, check
+`ss -tlnp` for port conflicts before picking a port, don't assume 8080 is free.
+
+**SSH**: `ssh netcup` (`~/.ssh/config`, root@netcup server). Deployment target only — do not
+develop or debug on it directly (see Hard Constraints below).
 
 **Deploy one-liner** (after pushing to GitHub):
 ```bash
-ssh <server> 'cd /opt/clinicapp && git pull && cd backend && go build -o bin/clinicapp-server ./cmd/server && systemctl restart clinicapp'
+ssh netcup 'cd /opt/clinicapp && git pull && cd backend && go build -o bin/clinicapp-server ./cmd/server && systemctl restart clinicapp'
 ```
 
 Then verify:
@@ -161,21 +165,32 @@ Then verify:
 curl https://clinic.ricksonmenezes.com/healthz
 ```
 
-`scripts/deploy.sh` wraps this one-liner.
+`scripts/deploy.sh netcup` wraps this one-liner.
 
-**Caddy** (reverse proxy):
+**Caddy** (reverse proxy) — appended to the netcup box's existing `/etc/caddy/Caddyfile`
+(which also serves unrelated sites on that box — never overwrite it wholesale):
 ```
-clinic.ricksonmenezes.com {
-    reverse_proxy localhost:8080
+http://clinic.ricksonmenezes.com {
+    reverse_proxy localhost:8081
 }
 ```
-TLS is handled by Cloudflare's orange proxy — Caddy listens on port 80 only. Do not let Caddy
-manage its own HTTPS (ACME) for this setup — Cloudflare handles TLS termination.
+TLS is handled by Cloudflare's orange proxy — Caddy listens on port 80 only (explicit `http://`
+scheme in the site address, matching the box's other sites, so Caddy never attempts ACME/its own
+HTTPS). `deploy/Caddyfile` in this repo is a template/reference for a single-site box — the
+actual live config lives only on the server and also has other, unrelated site blocks.
 
 **systemd** (`deploy/clinicapp.service`):
 - `User=clinicapp`
 - `EnvironmentFile=/opt/clinicapp/.env`
 - `Restart=on-failure`
+
+**Outstanding**: `MAIL_FROM=noreply@clinic.ricksonmenezes.com` in prod `.env` is **not yet a
+verified sender domain in Resend** — add `clinic.ricksonmenezes.com` under Resend → Domains and
+add the DNS records it gives you to Cloudflare. Until that's done, every email-sending endpoint
+(`register`, `resend-verification`, `forgot-password`, `reset-password`, booking confirmation)
+will fail on prod, since all four block on the mailer call succeeding (SMS confirmation is
+best-effort and unaffected). Everything else (auth, DB, all non-email API routes) is live and
+verified working.
 
 ---
 
@@ -309,6 +324,12 @@ This is additive to, not a replacement for, the per-email-address resend-verific
   sending. SMS confirmation on booking is best-effort — unlike the email confirmation, a missing
   phone number or a PhilSMS send failure is logged and does not fail the booking, since phone
   (unlike email) is optional and unverified.
+- **Production deploy (M9, live)**: see §7 for the full picture. Two things not obvious from the
+  code: (1) the netcup box hosts other, unrelated sites/services (a Hugo static site, and a
+  separate `sanasalinin.service` already on port `8080`) — clinicapp runs on `8081` and its Caddy
+  block was *appended* to the shared `/etc/caddy/Caddyfile`, never generated fresh from
+  `deploy/Caddyfile`. (2) `MAIL_FROM`'s domain isn't verified in Resend yet, so every
+  email-blocking endpoint 500s on prod until that's done — everything else is live and working.
 
 ---
 

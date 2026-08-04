@@ -38,18 +38,21 @@ instructions.
       Tests green.
 - [x] **M8** — SMS notifications: integrate PhilSMS, send SMS on booking confirmation.
       Tests green.
-- [ ] **M9** — Production deploy: server provisioned, systemd service installed, Caddy configured,
-      Cloudflare orange proxy active (TLS), end-to-end booking flow verified on prod.
-      `curl https://<domain>/healthz` → ok.
+- [x] **M9** — Production deploy: server provisioned, systemd service installed, Caddy configured,
+      Cloudflare orange proxy active (TLS). `curl https://clinic.ricksonmenezes.com/healthz` → ok.
+      Auth/DB verified end-to-end on prod. Email-dependent flows (registration, booking
+      confirmation) pending Resend domain verification — see decision log and pending items.
 
 ---
 
 ## Pending / deferred items
 
-- **Production domain already provisioned**: `clinic.ricksonmenezes.com` DNS already points at the
-  netcup server. Still pending: adding the `reverse_proxy localhost:8080` block for this subdomain
-  to Caddy on the netcup server itself (see `CLAUDE.md` §7). Deferred to M9 (production deploy);
-  no code-side work needed until then.
+- **Verify `clinic.ricksonmenezes.com` as a Resend sending domain**: add the domain under Resend →
+  Domains and add the DNS records it provides to Cloudflare. Until this is done, every
+  email-blocking endpoint on prod (`register`, `resend-verification`, `forgot-password`,
+  `reset-password`, booking confirmation) returns an error, since all of them fail the whole
+  request if the mailer call fails (SMS confirmation is unaffected — it's best-effort). This is
+  the only known gap between "deployed" and "fully usable by real patients."
 - Phase 2: Google / Apple OAuth (user_providers table scaffolded in M1, unused until Phase 2).
 - Phase 2: mobile app (React Native or Flutter) consuming the same Go API.
 - Phase 2: reporting / analytics dashboard.
@@ -59,6 +62,40 @@ instructions.
 
 ## Decision log
 
+- **2026-08-04** (M9): Production deploy complete. Live at `https://clinic.ricksonmenezes.com`.
+  **Server state discovered before provisioning (not previously documented)**: the netcup box
+  (`ssh netcup`, Debian 13) already runs Go 1.26.5 and Caddy 2.6.2 for unrelated sites (a Hugo
+  static site at `ricksonmenezes.com`, and a separate `sanasalinin.service` already bound to
+  `8080`) — PostgreSQL was not installed. **Port decision**: since `8080` was already taken,
+  clinicapp runs on **`8081`** (`PORT=8081` in prod `.env`), not the `8080` used everywhere in
+  local dev/docs — if `deploy/Caddyfile`'s port reference is ever reused elsewhere, check `ss
+  -tlnp` first rather than assuming `8080` is free. **Postgres**: created a scoped `clinicapp`
+  role + `clinicapp_prod` database (generated password) rather than reusing/changing the actual
+  `postgres` superuser — least-privilege, and avoids touching a credential that predates this
+  project. **Caddy**: the live `/etc/caddy/Caddyfile` on the box already serves other, unrelated
+  sites — a new `http://clinic.ricksonmenezes.com { reverse_proxy localhost:8081 }` block was
+  *appended* (with a timestamped backup taken first), never overwritten wholesale; `deploy/
+  Caddyfile` in this repo remains a single-site reference template, not what's actually live.
+  System user `clinicapp` created (`--system --shell /usr/sbin/nologin`), repo cloned to
+  `/opt/clinicapp` from the public GitHub remote, binary built there directly (no cross-compile,
+  matching `scripts/deploy.sh`'s existing assumption). `INVOICE_STORAGE_DIR`/
+  `PRESCRIPTION_STORAGE_DIR` point at `/var/lib/clinicapp/{invoices,prescriptions}` — outside
+  `/opt/clinicapp` per the env table's "persistent path outside the deploy dir" guidance, so a
+  future `git pull`-based redeploy can never touch generated PDFs. **Secrets handling**:
+  `JWT_SECRET`, the Postgres password, and the `ADMIN_BOOTSTRAP_PASSWORD` were freshly generated
+  (not reused from local dev) and shown to the user once in-session to save in their own password
+  manager — they're not recorded anywhere in this repo. `RESEND_API_KEY` and `SMS_API_KEY` *were*
+  reused from local dev, per explicit user choice (same providers/accounts regardless of which
+  server calls them). `ADMIN_BOOTSTRAP_EMAIL=ricksonmenezes@gmail.com`. **`MAIL_FROM` decision**:
+  the user chose `noreply@clinic.ricksonmenezes.com` over the Resend sandbox address for prod, but
+  that domain is not yet verified in Resend — see "Pending / deferred items" above; every
+  email-blocking endpoint will fail until that verification step happens. **Verification
+  performed**: `curl https://clinic.ricksonmenezes.com/healthz` → `{"status":"ok"}` through
+  Cloudflare; admin bootstrap login → JWT issued; authenticated `GET /services` round-tripped
+  through Postgres — confirming the full Cloudflare → Caddy → systemd → app → DB path works.
+  Deliberately did **not** exercise `POST /auth/register` or the booking flow against prod, since
+  both are known to fail pending the Resend domain verification above — running them now would
+  just reproduce a known, already-documented gap, not surface new information.
 - **2026-08-03** (M8): SMS notifications complete. New `internal/sms` package (`Message`,
   `Sender` interface, `PhilSMSSender`) — same shape as `internal/mailer`'s `Message`/`Mailer`,
   so `internal/booking` treats SMS the same way it already treats email. The docs URL from the
