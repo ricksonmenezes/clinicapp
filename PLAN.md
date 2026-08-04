@@ -2,6 +2,7 @@
 
 > What we're building and why. For how to run/deploy/test this repo, see `CLAUDE.md`.
 > For current status and what's done/pending, see `PROGRESS.md`.
+> For decisions this plan left implicit that had to be resolved mid-build, see `ARCHITECTURE.md`.
 
 ---
 

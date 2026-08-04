@@ -3,6 +3,8 @@
 > This file is HOW to run, deploy, and test this repo.
 > For WHAT clinicapp is and WHY decisions were made, read `PLAN.md`.
 > For current status and what's done/pending, read `PROGRESS.md`.
+> For gaps this plan left implicit that had to be resolved mid-build — and a checklist to avoid
+> repeating them on the next project — read `ARCHITECTURE.md`.
 
 ---
 
