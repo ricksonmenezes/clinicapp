@@ -54,12 +54,6 @@ instructions.
 
 ## Pending / deferred items
 
-- **Verify `clinic.ricksonmenezes.com` as a Resend sending domain**: add the domain under Resend →
-  Domains and add the DNS records it provides to Cloudflare. Until this is done, every
-  email-blocking endpoint on prod (`register`, `resend-verification`, `forgot-password`,
-  `reset-password`, booking confirmation) returns an error, since all of them fail the whole
-  request if the mailer call fails (SMS confirmation is unaffected — it's best-effort). This is
-  the only known gap between "deployed" and "fully usable by real patients."
 - **Phase 3** — mobile app (React Native or Flutter) consuming the same Go API.
 - **Phase 4** — multi-clinic / multi-branch support.
 - **Unscheduled** — Google / Apple OAuth (`user_providers` table scaffolded in M1, unused; not
@@ -69,6 +63,16 @@ instructions.
 
 ## Decision log
 
+- **2026-08-04** (Resend domain verified): `clinic.ricksonmenezes.com` is now a verified sending
+  domain in Resend (user added it under Resend → Domains and added the DNS records to Cloudflare).
+  Confirmed working end-to-end: registering a real patient on prod
+  (`https://clinic.ricksonmenezes.com`) delivered the verification email from
+  `noreply@clinic.ricksonmenezes.com`. This closes the last known gap from M9 — every
+  email-blocking endpoint (`register`, `resend-verification`, `forgot-password`, `reset-password`,
+  booking confirmation) is now expected to work on prod, not just locally. No code/config change
+  needed on this end since `MAIL_FROM` was already set to this address in prod `.env` since M9 —
+  the fix was entirely on the Resend/DNS side. Docs-only update: removed the corresponding
+  "Pending / deferred items" bullet here and the "Outstanding" gap noted in `CLAUDE.md` §7.
 - **2026-08-04** (M11): Patient portal UI complete — closes the `GET /` 404 flagged right after
   M9's deploy. **Scope confirmed with the user first**: full HTMX-style portal (real pages, not
   just a landing stub), reusing every existing API/fragment endpoint rather than building a

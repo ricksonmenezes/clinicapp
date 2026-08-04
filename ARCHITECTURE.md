@@ -85,10 +85,12 @@ that flow as "done" — not just "configured."
 
 **What happened here**: `MAIL_FROM` was set to a real subdomain address
 (`noreply@clinic.ricksonmenezes.com`) at the user's explicit choice over the safer sandbox
-fallback, but that domain isn't verified in Resend yet. Every email-blocking endpoint
-(register, forgot-password, booking confirmation) will fail on prod until that DNS/dashboard step
-happens — a real, currently-open gap, tracked in `PROGRESS.md`'s pending items, not something to
-silently assume is fine because the config value looks correct.
+fallback, and that domain was *not* verified in Resend at deploy time (M9) — every email-blocking
+endpoint (register, forgot-password, booking confirmation) failed on prod for about a day until
+the user completed the DNS/dashboard verification step (2026-08-04), confirmed by a real patient
+registration delivering mail from the verified address. The gap was real and lasted from deploy
+to verification, not something to silently assume is fine because the config value looks correct
+— exactly the failure mode this checklist item exists to prevent on the next project.
 
 ## 5. Ambiguous business logic left implicit in the plan
 

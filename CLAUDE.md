@@ -45,7 +45,7 @@ The server starts on `localhost:8080` by default (`PORT` env overrides).
 | `JWT_EXPIRY_MINUTES` | Access token TTL | `15` | `15` |
 | `REFRESH_TOKEN_EXPIRY_DAYS` | Refresh token TTL | `30` | `30` |
 | `RESEND_API_KEY` | Resend API key | sandbox key from resend.com | same sandbox key reused for now (see §9) |
-| `MAIL_FROM` | From address on outbound emails | `onboarding@resend.dev` (Resend sandbox address) | `noreply@clinic.ricksonmenezes.com` — **domain not yet verified in Resend, see §7 Outstanding** |
+| `MAIL_FROM` | From address on outbound emails | `onboarding@resend.dev` (Resend sandbox address) | `noreply@clinic.ricksonmenezes.com` — verified sender domain in Resend (see §7) |
 | `SMS_PROVIDER` | SMS provider name | `philsms` | `philsms` |
 | `SMS_API_KEY` | PhilSMS API key | key from dashboard.philsms.com | managed secret |
 | `SMS_SENDER_ID` | PhilSMS sender name on outbound SMS | `PhilSMS` (platform shared default) | `PhilSMS`, or the clinic's own registered sender ID once obtained |
@@ -189,12 +189,10 @@ actual live config lives only on the server and also has other, unrelated site b
 - `EnvironmentFile=/opt/clinicapp/.env`
 - `Restart=on-failure`
 
-**Outstanding**: `MAIL_FROM=noreply@clinic.ricksonmenezes.com` in prod `.env` is **not yet a
-verified sender domain in Resend** — add `clinic.ricksonmenezes.com` under Resend → Domains and
-add the DNS records it gives you to Cloudflare. Until that's done, every email-sending endpoint
-(`register`, `resend-verification`, `forgot-password`, `reset-password`, booking confirmation)
-will fail on prod, since all four block on the mailer call succeeding (SMS confirmation is
-best-effort and unaffected). Everything else (auth, DB, all non-email API routes) is live and
+`clinic.ricksonmenezes.com` is a verified sender domain in Resend (added under Resend → Domains,
+DNS records added to Cloudflare, 2026-08-04) — confirmed working end-to-end via a real patient
+registration on prod. All API routes, including every email-sending endpoint (`register`,
+`resend-verification`, `forgot-password`, `reset-password`, booking confirmation), are live and
 verified working.
 
 ---
