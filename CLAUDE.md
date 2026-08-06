@@ -251,6 +251,9 @@ the pre-push hook is a convenience to catch failures before they hit CI.
 - If `git push` fails on auth, stop and ask — do not attempt to fix credentials silently.
 
 ### Workflow
+- When asked to check/look at an image with no path given, look in
+  `/Users/ricksonmenezes/Documents/Screenshots` — screenshots the user takes are saved there by
+  default. Prefer the most recently modified file unless the name/context points to a different one.
 - Default to building an entire milestone in one pass without pausing for per-piece review.
 - Commit incrementally as pieces land and report back once the whole milestone is done.
 - Only stop mid-milestone if genuinely blocked: missing decision, missing credential, or a failing test that needs a design call.
