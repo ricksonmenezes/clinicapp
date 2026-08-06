@@ -329,13 +329,25 @@ func TestRegisterStaff_RequiresAdminAuth(t *testing.T) {
 	adminToken := LoginAdmin(t, ts.URL)
 	var created map[string]any
 	resp = PostJSONAuth(t, ts.URL, "/auth/register-staff", "mobile", adminToken, map[string]string{
-		"email": "staff@example.com", "password": "correcthorsebattery", "role": "clinician",
+		"email": "staff@example.com", "password": "correcthorsebattery", "role": "clinician", "full_name": "Staff Person",
 	}, &created)
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("register-staff as admin: want 201, got %d (%v)", resp.StatusCode, created)
 	}
 	if created["role"] != "clinician" {
 		t.Fatalf("register-staff: expected role clinician, got %v", created["role"])
+	}
+}
+
+func TestRegisterStaff_RequiresFullName(t *testing.T) {
+	ts, _, _ := NewTestServer(t)
+	adminToken := LoginAdmin(t, ts.URL)
+
+	resp := PostJSONAuth(t, ts.URL, "/auth/register-staff", "mobile", adminToken, map[string]string{
+		"email": "noname@example.com", "password": "correcthorsebattery", "role": "clinician",
+	}, nil)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("register-staff without full_name: want 400, got %d", resp.StatusCode)
 	}
 }
 

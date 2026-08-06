@@ -75,7 +75,12 @@ func (s *Service) Register(ctx context.Context, email, password string) (*User, 
 // the service layer only enforces that the role itself is a valid staff
 // role. The account is activated immediately since an admin is vouching for
 // it; no email verification round-trip.
-func (s *Service) RegisterStaff(ctx context.Context, email, password, role string) (*User, error) {
+//
+// fullName/dob exist purely so the account can later be found by name via
+// SearchUsers instead of by pasting the raw id shown once in this call's
+// response — they're not used anywhere in the auth flow itself. dob is
+// optional (only useful as a disambiguator when two staff share a name).
+func (s *Service) RegisterStaff(ctx context.Context, email, password, role, fullName string, dob *time.Time) (*User, error) {
 	email = normalizeEmail(email)
 	if err := validatePassword(password); err != nil {
 		return nil, err
@@ -85,13 +90,17 @@ func (s *Service) RegisterStaff(ctx context.Context, email, password, role strin
 	default:
 		return nil, ErrInvalidRole
 	}
+	fullName = strings.TrimSpace(fullName)
+	if fullName == "" {
+		return nil, ErrFullNameRequired
+	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
 	if err != nil {
 		return nil, err
 	}
 
-	user, err := s.repo.CreateUser(ctx, email, string(hash), role)
+	user, err := s.repo.CreateStaffUser(ctx, email, string(hash), role, fullName, dob)
 	if err != nil {
 		return nil, err
 	}
@@ -102,6 +111,18 @@ func (s *Service) RegisterStaff(ctx context.Context, email, password, role strin
 	user.Status = StatusActive
 
 	return user, nil
+}
+
+// SearchUsers looks up staff accounts by name for the backoffice's
+// name-search pickers (GET /users). See Repository.SearchUsers for the
+// unlinkedOnly semantics.
+func (s *Service) SearchUsers(ctx context.Context, role, query string, unlinkedOnly bool) ([]*User, error) {
+	switch role {
+	case RoleClinician, RoleAttendant, RoleAdmin:
+	default:
+		return nil, ErrInvalidRole
+	}
+	return s.repo.SearchUsers(ctx, role, query, unlinkedOnly)
 }
 
 // EnsureBootstrapAdmin creates the given admin account if no user with that

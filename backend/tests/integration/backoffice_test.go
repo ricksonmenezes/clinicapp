@@ -198,7 +198,7 @@ func TestBackofficeStaffCreation_SurfacesUserID(t *testing.T) {
 	// receives) must surface the created user's id in a data-user-id
 	// attribute, not just prose, so admin.js/the admin can chain it into
 	// creating a consultant/attendant/patient profile.
-	req, reqErr := http.NewRequest(http.MethodPost, ts.URL+"/auth/register-staff", strings.NewReader(`{"email":"newstaffweb@example.com","password":"correcthorsebattery","role":"clinician"}`))
+	req, reqErr := http.NewRequest(http.MethodPost, ts.URL+"/auth/register-staff", strings.NewReader(`{"email":"newstaffweb@example.com","password":"correcthorsebattery","role":"clinician","full_name":"New Staff Web","date_of_birth":"1990-05-14"}`))
 	if reqErr != nil {
 		t.Fatalf("build request: %v", reqErr)
 	}

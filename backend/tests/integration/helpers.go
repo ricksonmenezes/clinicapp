@@ -166,10 +166,14 @@ func RegisterVerifiedPatient(t *testing.T, baseURL string, fakeMailer *FakeMaile
 
 // RegisterStaffUser creates a clinician/attendant/admin account via the
 // admin-only /auth/register-staff endpoint and returns the new user's ID.
+// full_name is now required by that endpoint (see PLAN.md's "Changes
+// requested" — staff accounts need a name to be searchable), so this
+// derives a deterministic one from the email rather than making every call
+// site pass one.
 func RegisterStaffUser(t *testing.T, baseURL, adminToken, email, password, role string) string {
 	t.Helper()
 	req, err := http.NewRequest(http.MethodPost, baseURL+"/auth/register-staff", bytes.NewReader(mustJSON(t, map[string]string{
-		"email": email, "password": password, "role": role,
+		"email": email, "password": password, "role": role, "full_name": "Test " + role + " " + email,
 	})))
 	if err != nil {
 		t.Fatalf("build request: %v", err)

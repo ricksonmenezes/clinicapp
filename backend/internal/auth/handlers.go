@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"net/http"
+	"strings"
 	"time"
 
 	"clinicapp/backend/internal/renderer"
@@ -58,10 +60,14 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 }
 
 type registerStaffRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-	Role     string `json:"role"`
+	Email       string `json:"email"`
+	Password    string `json:"password"`
+	Role        string `json:"role"`
+	FullName    string `json:"full_name"`
+	DateOfBirth string `json:"date_of_birth"`
 }
+
+const dobLayout = "2006-01-02"
 
 // RegisterStaff creates a clinician/attendant/admin account. Only reachable
 // by an authenticated admin (enforced by router middleware) — the account is
@@ -73,7 +79,17 @@ func (h *Handler) RegisterStaff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.svc.RegisterStaff(r.Context(), req.Email, req.Password, req.Role)
+	var dob *time.Time
+	if s := strings.TrimSpace(req.DateOfBirth); s != "" {
+		t, err := time.Parse(dobLayout, s)
+		if err != nil {
+			renderError(w, r, http.StatusBadRequest, ErrInvalidDateOfBirth)
+			return
+		}
+		dob = &t
+	}
+
+	user, err := h.svc.RegisterStaff(r.Context(), req.Email, req.Password, req.Role, req.FullName, dob)
 	if err != nil {
 		renderError(w, r, statusForError(err), err)
 		return
@@ -87,8 +103,65 @@ func (h *Handler) RegisterStaff(w http.ResponseWriter, r *http.Request) {
 			"role":   user.Role,
 			"status": user.Status,
 		},
-		HTML: fmt.Sprintf(`<p data-user-id="%s">Staff account created for %s (id: %s).</p>`, user.ID, user.Email, user.ID),
+		HTML: fmt.Sprintf(`<p data-user-id="%s">Staff account created for %s (%s).</p>`, user.ID, *user.FullName, user.Email),
 	})
+}
+
+// Search looks up staff accounts by name (GET /users?role=&q=&unlinked=),
+// so the backoffice can find a user without handling its id directly — see
+// PLAN.md's "Changes requested" entry this replaces. Admin-only (enforced
+// by router middleware).
+func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
+	role := r.URL.Query().Get("role")
+	query := r.URL.Query().Get("q")
+	unlinked := r.URL.Query().Get("unlinked") == "true"
+
+	users, err := h.svc.SearchUsers(r.Context(), role, query, unlinked)
+	if err != nil {
+		renderError(w, r, statusForError(err), err)
+		return
+	}
+
+	items := make([]any, 0, len(users))
+	var htmlBuf strings.Builder
+	htmlBuf.WriteString("<ul>")
+	for _, u := range users {
+		items = append(items, userSearchJSON(u))
+		htmlBuf.WriteString(userSearchHTML(u))
+	}
+	htmlBuf.WriteString("</ul>")
+
+	renderer.Render(w, r, renderer.Response{
+		Status: http.StatusOK,
+		JSON:   map[string]any{"users": items},
+		HTML:   htmlBuf.String(),
+	})
+}
+
+func userSearchJSON(u *User) map[string]any {
+	out := map[string]any{"id": u.ID, "email": u.Email}
+	if u.FullName != nil {
+		out["full_name"] = *u.FullName
+	}
+	if u.DateOfBirth != nil {
+		out["date_of_birth"] = u.DateOfBirth.Format(dobLayout)
+	}
+	return out
+}
+
+// userSearchHTML renders "Full Name (1990-05-14)" — or just the name if no
+// date of birth was captured — specifically so admin.js's search picker can
+// disambiguate two staff members who happen to share a name.
+func userSearchHTML(u *User) string {
+	name := u.Email
+	if u.FullName != nil {
+		name = *u.FullName
+	}
+	label := html.EscapeString(name)
+	if u.DateOfBirth != nil {
+		label = fmt.Sprintf("%s (%s)", label, u.DateOfBirth.Format(dobLayout))
+	}
+	return fmt.Sprintf(`<li data-id="%s">%s</li>`, html.EscapeString(u.ID), label)
 }
 
 func (h *Handler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
@@ -367,7 +440,7 @@ func statusForError(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, ErrUserNotFound):
 		return http.StatusNotFound
-	case errors.Is(err, ErrInvalidRole):
+	case errors.Is(err, ErrInvalidRole), errors.Is(err, ErrFullNameRequired), errors.Is(err, ErrInvalidDateOfBirth):
 		return http.StatusBadRequest
 	default:
 		return http.StatusInternalServerError

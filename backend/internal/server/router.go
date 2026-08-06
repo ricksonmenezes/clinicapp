@@ -148,6 +148,11 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config, m mailer.Mailer, s sms.Se
 	patientOnly := middleware.RequireRole(auth.RolePatient)
 
 	mux.Handle("POST /auth/register-staff", authRequired(adminOnly(http.HandlerFunc(authHandler.RegisterStaff))))
+	// Name-search lookup for staff accounts (GET /users?role=&q=&unlinked=),
+	// admin-only same as register-staff — lets the backoffice find a
+	// consultant/attendant by name instead of a raw user id (PLAN.md's
+	// "Changes requested").
+	mux.Handle("GET /users", authRequired(adminOnly(http.HandlerFunc(authHandler.Search))))
 
 	mux.Handle("POST /patients", authRequired(adminOnly(http.HandlerFunc(patientHandler.Create))))
 	mux.Handle("GET /patients", authRequired(adminOrClinician(http.HandlerFunc(patientHandler.List))))

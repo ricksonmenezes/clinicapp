@@ -22,6 +22,14 @@ type User struct {
 	PasswordHash string
 	Role         string
 	Status       string
+	// FullName and DateOfBirth are only ever set for staff accounts
+	// created via RegisterStaff — captured purely so an admin can look a
+	// staff account up by name (GET /users) instead of handling its id
+	// directly. Patients keep their own separate full_name/dob on the
+	// patients table (set when they complete their profile); these stay
+	// nil for patient/self-registered users.
+	FullName     *string
+	DateOfBirth  *time.Time
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -62,4 +70,6 @@ var (
 	ErrTokenRevoked       = errors.New("token revoked")
 	ErrWeakPassword       = errors.New("password must be at least 8 characters")
 	ErrInvalidRole        = errors.New("invalid role")
+	ErrFullNameRequired   = errors.New("full name is required")
+	ErrInvalidDateOfBirth = errors.New("invalid date of birth")
 )
