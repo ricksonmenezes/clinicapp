@@ -9,15 +9,20 @@
   <p class="hint">Click a consultant to edit their profile and manage per-service commission overrides.</p>
 
   <h3>Create consultant profile</h3>
-  <p class="hint">Requires the user_id of a clinician account — create one first under
-    <a href="/admin/staff/new">New staff account</a>.</p>
+  <p class="hint">First create the clinician's account under
+    <a href="/admin/staff/new">New staff account</a>, then find them by name below.</p>
   <div id="consultant-create-result"></div>
   <form method="post" action="/consultants" data-json data-target="#consultant-create-result">
-    <label>User ID
-      <input type="text" name="user_id" required>
-    </label>
+    <div data-user-picker data-role="clinician" data-unlinked="true">
+      <label>Find clinician account
+        <input type="text" data-picker-query placeholder="Type a name…" autocomplete="off">
+      </label>
+      <ul class="admin-list" data-picker-results></ul>
+      <p class="hint" data-picker-selected>No account selected yet.</p>
+      <input type="hidden" name="user_id" data-picker-value required>
+    </div>
     <label>Full name
-      <input type="text" name="full_name" required>
+      <input type="text" name="full_name" data-picker-autofill="full_name" required>
     </label>
     <label>Default commission (%)
       <input type="number" step="0.01" min="0" max="100" name="default_commission" required>

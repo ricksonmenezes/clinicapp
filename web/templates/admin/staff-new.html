@@ -2,13 +2,19 @@
 <section>
   <h1>New staff account</h1>
   <p>Creates a clinician, attendant, or admin account — active immediately, no email
-    verification round-trip. The account's user id is shown after creation; you'll need it to
-    create the matching consultant/attendant profile.</p>
+    verification round-trip. Afterwards, find this person by name on the Consultants or
+    Attendants page to create their profile — you never need to handle their account id.</p>
 </section>
 
 <section class="card">
   <div id="staff-create-result"></div>
   <form method="post" action="/auth/register-staff" data-json data-target="#staff-create-result">
+    <label>Full name
+      <input type="text" name="full_name" required>
+    </label>
+    <label>Date of birth (optional — only needed to tell apart two staff who share a name)
+      <input type="date" name="date_of_birth">
+    </label>
     <label>Email
       <input type="email" name="email" required>
     </label>

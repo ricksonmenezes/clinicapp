@@ -161,7 +161,7 @@ func userSearchHTML(u *User) string {
 	if u.DateOfBirth != nil {
 		label = fmt.Sprintf("%s (%s)", label, u.DateOfBirth.Format(dobLayout))
 	}
-	return fmt.Sprintf(`<li data-id="%s">%s</li>`, html.EscapeString(u.ID), label)
+	return fmt.Sprintf(`<li data-id="%s" data-full-name="%s">%s</li>`, html.EscapeString(u.ID), html.EscapeString(name), label)
 }
 
 func (h *Handler) VerifyEmail(w http.ResponseWriter, r *http.Request) {

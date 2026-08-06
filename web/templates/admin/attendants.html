@@ -9,15 +9,20 @@
   <p class="hint">Click an attendant to edit their profile.</p>
 
   <h3>Create attendant profile</h3>
-  <p class="hint">Requires the user_id of an attendant account — create one first under
-    <a href="/admin/staff/new">New staff account</a>.</p>
+  <p class="hint">First create the attendant's account under
+    <a href="/admin/staff/new">New staff account</a>, then find them by name below.</p>
   <div id="attendant-create-result"></div>
   <form method="post" action="/attendants" data-json data-target="#attendant-create-result">
-    <label>User ID
-      <input type="text" name="user_id" required>
-    </label>
+    <div data-user-picker data-role="attendant" data-unlinked="true">
+      <label>Find attendant account
+        <input type="text" data-picker-query placeholder="Type a name…" autocomplete="off">
+      </label>
+      <ul class="admin-list" data-picker-results></ul>
+      <p class="hint" data-picker-selected>No account selected yet.</p>
+      <input type="hidden" name="user_id" data-picker-value required>
+    </div>
     <label>Full name
-      <input type="text" name="full_name" required>
+      <input type="text" name="full_name" data-picker-autofill="full_name" required>
     </label>
     <button type="submit">Create</button>
   </form>

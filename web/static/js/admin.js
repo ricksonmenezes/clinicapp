@@ -15,6 +15,7 @@
 //    JS API (htmx.ajax) to reuse the existing HTML fragment instead of
 //    hand-rolling a client-side renderer.
 document.addEventListener('click', function (event) {
+  if (event.target.closest('[data-picker-results]')) return; // handled by the user-picker listener below
   var li = event.target.closest('li[data-id]');
   if (!li) return;
   var section = li.closest('[data-admin-resource]');
@@ -93,4 +94,65 @@ document.addEventListener('input', function (event) {
   var form = el.closest('form');
   var base = form.getAttribute('data-action-base');
   form.setAttribute('action', base + encodeURIComponent(el.value));
+});
+
+// User-picker: search a staff account by name instead of pasting its raw
+// id. Markup contract (see consultants.html/attendants.html for the
+// create-profile forms that use this):
+//   <div data-user-picker data-role="clinician" data-unlinked="true">
+//     <input data-picker-query>
+//     <ul data-picker-results></ul>
+//     <p data-picker-selected></p>
+//     <input type="hidden" name="user_id" data-picker-value>
+//   </div>
+// data-role/data-unlinked feed GET /users?role=&q=&unlinked= (admin-only —
+// unlinked=true additionally excludes users who already have a
+// consultant/attendant profile). Each result renders as "Full Name
+// (1990-05-14)" server-side (userSearchHTML) specifically so two staff
+// sharing a name can be told apart without ever exposing the id itself in
+// the UI — clicking a result is what fills the hidden user_id field.
+document.addEventListener('input', function (event) {
+  var el = event.target;
+  if (!el.matches('[data-picker-query]')) return;
+  var picker = el.closest('[data-user-picker]');
+  var results = picker.querySelector('[data-picker-results]');
+  var query = el.value.trim();
+  if (query.length < 2) {
+    results.innerHTML = '';
+    return;
+  }
+  var role = picker.getAttribute('data-role');
+  var unlinked = picker.getAttribute('data-unlinked') === 'true' ? '&unlinked=true' : '';
+  fetch('/users?role=' + encodeURIComponent(role) + '&q=' + encodeURIComponent(query) + unlinked, {
+    headers: { 'X-Client-Type': 'mobile' },
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      var users = data.users || [];
+      if (!users.length) {
+        results.innerHTML = '<li>No matches.</li>';
+        return;
+      }
+      results.innerHTML = users.map(function (u) {
+        var label = u.full_name || u.email;
+        if (u.date_of_birth) label += ' (' + u.date_of_birth + ')';
+        return '<li data-id="' + u.id + '">' + label + '</li>';
+      }).join('');
+    });
+});
+
+document.addEventListener('click', function (event) {
+  var li = event.target.closest('[data-picker-results] li[data-id]');
+  if (!li) return;
+  var picker = li.closest('[data-user-picker]');
+  picker.querySelector('[data-picker-value]').value = li.getAttribute('data-id');
+  picker.querySelector('[data-picker-selected]').textContent = 'Selected: ' + li.textContent;
+  picker.querySelector('[data-picker-results]').innerHTML = '';
+  picker.querySelector('[data-picker-query]').value = '';
+
+  // Optional: a sibling field elsewhere in the same form pre-filled from
+  // the picked account's name, so the admin doesn't retype it (e.g. the
+  // consultant/attendant profile's own "Full name" field).
+  var autofill = picker.closest('form').querySelector('[data-picker-autofill="full_name"]');
+  if (autofill) autofill.value = li.getAttribute('data-full-name') || '';
 });
