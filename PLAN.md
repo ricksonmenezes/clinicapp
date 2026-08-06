@@ -117,6 +117,28 @@ A full-stack clinic scheduling and management platform with:
 
 ---
 
+## Changes requested
+
+> User-raised requests for behavior changes to already-shipped functionality — as opposed to the
+> Phase 2–4 items above, which are net-new scope. Dated, kept until implemented (then moved into
+> `PROGRESS.md`'s decision log and removed from here) or explicitly dropped.
+
+- **2026-08-06 — Staff → consultant/attendant profile linking shouldn't require a raw user id.**
+  Today (M12's backoffice UI), creating a staff account (`/admin/staff/new`) shows the new user's
+  id exactly once in the confirmation message ("Staff account created for test@gmail.com (id:
+  bf26af5a-...)"), the same way a one-time API secret is shown — easy to lose. The admin then has
+  to paste that id by hand into the consultant/attendant profile-creation form's "User ID" field,
+  with no way to look it up again if it's forgotten. Requested fix: replace the raw user-id field
+  with a search-by-name picker — type a name, get a list of matching not-yet-linked staff
+  accounts to choose from, no id ever handled manually. Since two staff members can share a name,
+  also capture **date of birth** on the New Staff Account form and show it in parentheses next to
+  each name in the search results (e.g. "Jane Diaz (1990-05-14)") so the admin can tell duplicates
+  apart. Not yet scoped or implemented — needs a design pass (does DOB live on `users` or get
+  captured some other way; new search/lookup endpoint; a search-typeahead UI pattern the app
+  doesn't have anywhere yet) before work starts.
+
+---
+
 ## Key decisions and why
 
 - **One backend, two clients.** The Go backend reads `X-Client-Type` from the request header and routes to a `ResponseRenderer` that either returns HTMX-ready HTML fragments (web) or JSON (mobile). Same business logic, same endpoints — no duplicate API surface.
