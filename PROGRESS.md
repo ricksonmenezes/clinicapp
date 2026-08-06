@@ -103,6 +103,47 @@ first" pattern from M10/M11):
 
 ## Decision log
 
+- **2026-08-06** (Changes requested — resolved): Replaced raw user-id entry on the
+  consultant/attendant profile-creation forms with a search-by-name picker, closing the
+  `PLAN.md` "Changes requested" item logged the same day (user-reported: the id shown once after
+  creating a staff account was easy to lose, and there was no way to look it up again).
+  **Migration 020** adds `users.full_name`/`users.date_of_birth` — both nullable, populated only
+  for staff accounts going forward via `RegisterStaff` (patients keep their own separate
+  `full_name`/`dob` on the `patients` table, set when they complete their own profile; this is a
+  deliberate non-overlap, not a duplication of that data). `full_name` is now **required** on
+  `POST /auth/register-staff` (existing tests/helpers updated to pass one); `date_of_birth` is
+  optional — it exists purely as a disambiguator for two staff sharing a name, nothing in the auth
+  flow itself uses it.
+  **New `GET /users?role=&q=&unlinked=`** (admin-only, same gate as `register-staff`): searches by
+  a case-insensitive `full_name` substring, scoped to one role at a time. `unlinked=true`
+  additionally excludes users who already have a `consultants`/`attendants` profile row (a `LEFT
+  JOIN` against the role-appropriate table — reaching across package-owned tables directly via
+  SQL, same precedent as `session.Repository` reaching into `patient_packages`, M4's decision
+  log). Web-mode results render as `<li data-id="..." data-full-name="...">Full Name
+  (1990-05-14)</li>` — the DOB suffix only appears when set, and `data-full-name` exists so
+  selecting a result can also auto-fill a sibling "Full name" field without the admin retyping it.
+  **New `admin.js` search-picker pattern** (`data-user-picker`/`data-picker-query`/
+  `data-picker-results`/`data-picker-value`/`data-picker-selected`, plus optional
+  `data-picker-autofill="full_name"` on another field in the same form): wired into
+  `consultants.html` and `attendants.html`'s create-profile forms in place of the old raw "User
+  ID" text input. Required an explicit guard in the existing click-to-populate-edit-form listener
+  (`if (event.target.closest('[data-picker-results]')) return`) since the picker's `<li data-id>`
+  results sit inside the same `[data-admin-resource]` section as the edit-form list, and would
+  otherwise be misread as "click a consultant row to edit it" — caught by reasoning through the
+  DOM structure, not by a failing test, so this is a good candidate for a future regression test
+  if the pattern gets reused elsewhere.
+  **`staff-new.html`** gained `full_name` (required) and `date_of_birth` (optional, with a hint
+  explaining it's only for disambiguation) fields.
+  9 new integration tests in `user_search_test.go` cover: partial-name matching, role filtering,
+  the `unlinked=true` exclusion (and that it still shows up without the filter), admin-only
+  gating, and the web fragment's DOB-in-parens rendering both present and absent. `RegisterStaff`'s
+  fragment now shows the name in prose (`"Staff account created for Jane Diaz (jane.diaz@...)."`)
+  with the id still available as `data-user-id` for scripting, even though nothing in the UI
+  requires copying it anywhere anymore. Manually verified beyond `go test` (same no-browser-tool
+  caveat as M12): created two clinicians sharing a first name (one with a DOB, one without),
+  confirmed the search fragment disambiguates them correctly, created a consultant profile for one
+  via its id, and confirmed a follow-up `unlinked=true` search correctly dropped her from the
+  results while the other still appeared. `go test ./...` green throughout.
 - **2026-08-04** (M12): Backoffice UI complete — matches the scope table above exactly, plus one
   scope addition and one real bug found and fixed while building it.
   **New `internal/backoffice` package**, structurally identical to `internal/portal` (`Templates`
